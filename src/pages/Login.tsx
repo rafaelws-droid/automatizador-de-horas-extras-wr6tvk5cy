@@ -1,7 +1,17 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Lock, Mail, ArrowRight, Loader2, AlertCircle, ShieldCheck } from 'lucide-react'
+import {
+  Lock,
+  Mail,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  User,
+  LogIn,
+  UserPlus,
+  CheckCircle2,
+} from 'lucide-react'
 import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,16 +25,23 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
+
+type Modo = 'login' | 'signup'
 
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login, isAuthenticated } = useAuth()
+  const { login, signup, isAuthenticated } = useAuth()
 
-  const [email, setEmail] = useState('rafaelws@silveiratransportes.com')
-  const [password, setPassword] = useState('Skip@Pass')
+  const [modo, setModo] = useState<Modo>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sucesso, setSucesso] = useState<string | null>(null)
 
   // Redirect if already authenticated
   if (isAuthenticated) {
@@ -32,32 +49,66 @@ export default function Login() {
     navigate(from, { replace: true })
   }
 
+  const destinoAposLogin = () => {
+    const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/'
+    navigate(from, { replace: true })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSucesso(null)
 
     if (!email.trim() || !password) {
       setError('Por favor, informe seu e-mail e sua senha.')
       return
     }
 
+    if (modo === 'signup') {
+      if (!name.trim()) {
+        setError('Por favor, informe o seu nome.')
+        return
+      }
+      if (password.length < 8) {
+        setError('A senha deve ter no mínimo 8 caracteres.')
+        return
+      }
+      if (password !== passwordConfirm) {
+        setError('As senhas não coincidem. Verifique e tente novamente.')
+        return
+      }
+    }
+
     try {
       setIsLoading(true)
-      await login(email, password)
-      const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/'
-      navigate(from, { replace: true })
+      if (modo === 'signup') {
+        await signup(name, email, password)
+        setSucesso('Conta criada com sucesso! Bem-vindo ao sistema.')
+        destinoAposLogin()
+      } else {
+        await login(email, password)
+        destinoAposLogin()
+      }
     } catch (err: unknown) {
-      console.error('Erro de login:', err)
-      setError('Credenciais inválidas. Verifique seu e-mail e senha.')
+      console.error('Erro de autenticação:', err)
+      const msg = getErrorMessage(err)
+      setError(
+        msg && msg !== 'An unexpected error occurred.'
+          ? msg
+          : modo === 'signup'
+            ? 'Não foi possível criar a conta. Verifique os dados e tente novamente.'
+            : 'Credenciais inválidas. Verifique seu e-mail e senha.',
+      )
     } finally {
       setIsLoading(false)
     }
   }
 
-  const fillQuickCredentials = (userEmail: string) => {
-    setEmail(userEmail)
-    setPassword('Skip@Pass')
+  const alternarModo = () => {
+    setModo(modo === 'login' ? 'signup' : 'login')
     setError(null)
+    setSucesso(null)
+    setPasswordConfirm('')
   }
 
   return (
@@ -79,10 +130,12 @@ export default function Login() {
         <Card className="border-slate-800 bg-white/95 shadow-2xl backdrop-blur">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl font-semibold text-slate-900">
-              Entrar no sistema
+              {modo === 'login' ? 'Entrar no sistema' : 'Criar nova conta'}
             </CardTitle>
             <CardDescription className="text-slate-600">
-              Digite seu e-mail e senha cadastrados para acessar o painel
+              {modo === 'login'
+                ? 'Digite seu e-mail e senha cadastrados para acessar o painel'
+                : 'Cadastre-se com e-mail e senha para começar a usar o sistema'}
             </CardDescription>
           </CardHeader>
 
@@ -95,9 +148,38 @@ export default function Login() {
                 </Alert>
               )}
 
+              {sucesso && (
+                <Alert className="py-2.5 border-emerald-200 bg-emerald-50 text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <AlertDescription className="text-xs text-emerald-800">
+                    {sucesso}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {modo === 'signup' && (
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-xs font-semibold text-slate-700">
+                    Seu nome
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Ex.: Rafael Silveira"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="pl-9"
+                      autoComplete="name"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-xs font-semibold text-slate-700">
-                  E-mail do Gestor
+                  E-mail {modo === 'login' ? 'do Gestor' : ''}
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -128,43 +210,39 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-9"
                     required
-                    autoComplete="current-password"
+                    minLength={modo === 'signup' ? 8 : undefined}
+                    autoComplete={modo === 'signup' ? 'new-password' : 'current-password'}
                   />
                 </div>
               </div>
 
-              <div className="rounded-lg bg-blue-50/80 p-3 border border-blue-100 text-xs text-blue-900">
-                <div className="flex items-center gap-1.5 font-medium mb-1">
-                  <ShieldCheck className="h-4 w-4 text-blue-600" />
-                  <span>Acesso de Demonstração</span>
+              {modo === 'signup' && (
+                <div className="space-y-2">
+                  <Label htmlFor="passwordConfirm" className="text-xs font-semibold text-slate-700">
+                    Confirmar senha
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="passwordConfirm"
+                      type="password"
+                      placeholder="••••••••"
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      className="pl-9"
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    A senha deve ter no mínimo 8 caracteres.
+                  </p>
                 </div>
-                <p className="text-blue-700 mb-2">
-                  Você pode usar a conta principal ou a conta demo para testar:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
-                    onClick={() => fillQuickCredentials('rafaelws@silveiratransportes.com')}
-                  >
-                    Usar conta principal
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
-                    onClick={() => fillQuickCredentials('admin@empresa.com')}
-                  >
-                    Usar conta demo
-                  </Button>
-                </div>
-              </div>
+              )}
             </CardContent>
 
-            <CardFooter>
+            <CardFooter className="flex-col gap-3">
               <Button
                 type="submit"
                 disabled={isLoading}
@@ -173,15 +251,44 @@ export default function Login() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Entrando...
+                    {modo === 'login' ? 'Entrando...' : 'Criando conta...'}
                   </>
                 ) : (
                   <>
-                    Acessar Painel
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    {modo === 'login' ? (
+                      <>
+                        Acessar Painel
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    ) : (
+                      <>
+                        Criar conta e entrar
+                        <UserPlus className="ml-2 h-4 w-4" />
+                      </>
+                    )}
                   </>
                 )}
               </Button>
+
+              <button
+                type="button"
+                onClick={alternarModo}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                <span className="flex items-center gap-1.5">
+                  {modo === 'login' ? (
+                    <>
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Não tem conta? Criar cadastro
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="h-3.5 w-3.5" />
+                      Já tenho conta — voltar ao login
+                    </>
+                  )}
+                </span>
+              </button>
             </CardFooter>
           </form>
         </Card>

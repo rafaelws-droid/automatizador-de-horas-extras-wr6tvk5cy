@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, pass: string) => Promise<void>
+  signup: (name: string, email: string, pass: string) => Promise<void>
   logout: () => void
 }
 
@@ -56,6 +57,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await pb.collection('users').authWithPassword(email.trim(), pass)
   }
 
+  const signup = async (name: string, email: string, pass: string) => {
+    await pb.collection('users').create({
+      name: name.trim(),
+      email: email.trim(),
+      password: pass,
+      passwordConfirm: pass,
+    })
+    await pb.collection('users').authWithPassword(email.trim(), pass)
+  }
+
   const logout = () => {
     pb.authStore.clear()
     setUser(null)
@@ -70,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user && !!token,
         isLoading,
         login,
+        signup,
         logout,
       }}
     >
