@@ -3,8 +3,17 @@ import { registrosService } from '@/services/registros'
 import { colaboradoresService } from '@/services/colaboradores'
 import type { RegistroHoraExtra, Colaborador } from '@/types'
 import { formatCurrency, formatDateBR, exportRelatorioIndividualToCsv } from '@/lib/exportUtils'
+import { exportRelatorioIndividualToXlsx } from '@/lib/exportXlsx'
 import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
-import { FileBarChart, FileSpreadsheet, Clock, DollarSign, Loader2, User } from 'lucide-react'
+import {
+  FileBarChart,
+  FileSpreadsheet,
+  FileText,
+  Clock,
+  DollarSign,
+  Loader2,
+  User,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -90,23 +99,41 @@ export default function Relatorio() {
       ? `${dataInicio ? formatDateBR(dataInicio) : 'início'} a ${dataFim ? formatDateBR(dataFim) : 'hoje'}`
       : 'Todo o período'
 
-  const handleExport = () => {
+  const infoExportacao = colaboradorSelecionado
+    ? {
+        nomeColaborador: colaboradorSelecionado.nome,
+        funcao: colaboradorSelecionado.funcao,
+        periodo: periodoTexto,
+      }
+    : null
+
+  const validarExportacao = () => {
     if (!colaboradorSelecionado || registrosPeriodo.length === 0) {
       toast({
         title: 'Nada para exportar',
         description: 'Selecione um colaborador com registros no período.',
         variant: 'destructive',
       })
-      return
+      return false
     }
-    exportRelatorioIndividualToCsv(registrosPeriodo, {
-      nomeColaborador: colaboradorSelecionado.nome,
-      funcao: colaboradorSelecionado.funcao,
-      periodo: periodoTexto,
-    })
+    return true
+  }
+
+  const handleExportCsv = () => {
+    if (!validarExportacao() || !infoExportacao) return
+    exportRelatorioIndividualToCsv(registrosPeriodo, infoExportacao)
     toast({
       title: 'Relatório exportado com sucesso!',
-      description: `${registrosPeriodo.length} registros de ${colaboradorSelecionado.nome} exportados.`,
+      description: `${registrosPeriodo.length} registros de ${colaboradorSelecionado?.nome} exportados para CSV.`,
+    })
+  }
+
+  const handleExportXlsx = () => {
+    if (!validarExportacao() || !infoExportacao) return
+    exportRelatorioIndividualToXlsx(registrosPeriodo, infoExportacao)
+    toast({
+      title: 'Arquivo Excel exportado com sucesso!',
+      description: `${registrosPeriodo.length} registros de ${colaboradorSelecionado?.nome} exportados para XLSX.`,
     })
   }
 
@@ -132,14 +159,24 @@ export default function Relatorio() {
           </div>
         </div>
 
-        <Button
-          onClick={handleExport}
-          disabled={!colaboradorSelecionado || registrosPeriodo.length === 0}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Exportar para Planilha
-        </Button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            onClick={handleExportCsv}
+            disabled={!colaboradorSelecionado || registrosPeriodo.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+          <Button
+            onClick={handleExportXlsx}
+            disabled={!colaboradorSelecionado || registrosPeriodo.length === 0}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm flex items-center gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Exportar XLSX
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}

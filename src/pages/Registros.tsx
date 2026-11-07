@@ -4,9 +4,11 @@ import { registrosService } from '@/services/registros'
 import { colaboradoresService } from '@/services/colaboradores'
 import type { RegistroHoraExtra, Colaborador } from '@/types'
 import { formatCurrency, formatDateBR, exportRegistrosToCsv } from '@/lib/exportUtils'
+import { exportRegistrosToXlsx } from '@/lib/exportXlsx'
 import {
   History,
   FileSpreadsheet,
+  FileText,
   PlusCircle,
   Search,
   Filter,
@@ -150,6 +152,23 @@ export default function Registros() {
     })
   }
 
+  const handleExportXlsx = () => {
+    if (filteredRegistros.length === 0) {
+      toast({
+        title: 'Nenhum registro para exportar',
+        description: 'Ajuste os filtros ou lance registros primeiro.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    exportRegistrosToXlsx(filteredRegistros, 'horas_extras_export')
+    toast({
+      title: 'Arquivo Excel exportado com sucesso!',
+      description: `${filteredRegistros.length} registros exportados para XLSX.`,
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -171,8 +190,17 @@ export default function Registros() {
             disabled={filteredRegistros.length === 0}
             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2"
           >
+            <FileText className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+
+          <Button
+            onClick={handleExportXlsx}
+            disabled={filteredRegistros.length === 0}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm flex items-center gap-2"
+          >
             <FileSpreadsheet className="h-4 w-4" />
-            Exportar para Planilha
+            Exportar XLSX
           </Button>
 
           <Button asChild variant="outline" className="shadow-sm">
@@ -421,14 +449,24 @@ export default function Registros() {
             <span>
               Exibindo <strong>{filteredRegistros.length}</strong> registro(s) filtrado(s)
             </span>
-            <Button
-              variant="link"
-              size="sm"
-              onClick={handleExportCsv}
-              className="text-xs text-emerald-700 p-0 h-auto font-semibold hover:underline"
-            >
-              Baixar esses dados para planilha (Google Sheets) &rarr;
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="link"
+                size="sm"
+                onClick={handleExportCsv}
+                className="text-xs text-emerald-700 p-0 h-auto font-semibold hover:underline"
+              >
+                Baixar CSV &rarr;
+              </Button>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={handleExportXlsx}
+                className="text-xs text-emerald-700 p-0 h-auto font-semibold hover:underline"
+              >
+                Baixar XLSX &rarr;
+              </Button>
+            </div>
           </div>
         </div>
       )}
