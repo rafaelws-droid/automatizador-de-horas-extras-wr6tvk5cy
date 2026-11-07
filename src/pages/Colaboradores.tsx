@@ -1,32 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { colaboradoresService } from '@/services/colaboradores'
-import type { Colaborador } from '@/types'
-import { formatCurrency } from '@/lib/exportUtils'
-import {
-  Users,
-  UserPlus,
-  Pencil,
-  Trash2,
-  Search,
-  Loader2,
-  AlertCircle,
-  Briefcase,
-  CheckCircle2,
-  DollarSign,
-} from 'lucide-react'
+import { colaboradoresService, type ColaboradorInput } from '@/services/colaboradores'
+import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
+import { EMPRESAS, type Colaborador, type Empresa } from '@/types'
+import { Loader2, Users, Plus, Pencil, Trash2, Search, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,31 +18,46 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { formatCurrency } from '@/lib/exportUtils'
+
+const badgeClasses: Record<Empresa, string> = {
+  RAFAEL: 'bg-blue-100 text-blue-800 border-blue-200',
+  RUANN: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  OLIMAR: 'bg-purple-100 text-purple-800 border-purple-200',
+}
 
 export default function Colaboradores() {
   const { toast } = useToast()
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [filtro, setFiltro] = useState('')
+  const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS')
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  // Dialog State (Create / Edit)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingColaborador, setEditingColaborador] = useState<Colaborador | null>(null)
-  const [nome, setNome] = useState('')
-  const [funcao, setFuncao] = useState('')
-  const [valorHora, setValorHora] = useState<string>('')
-  const [formError, setFormError] = useState<string | null>(null)
-
-  // Delete Dialog State
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [form, setForm] = useState<ColaboradorInput>({
+    nome: '',
+    funcao: '',
+    empresa: 'RAFAEL',
+    valor_hora: 0,
+  })
 
   const loadColaboradores = async () => {
     try {
-      setIsLoading(true)
       const data = await colaboradoresService.getAll()
       setColaboradores(data)
     } catch (err) {
@@ -78,93 +74,90 @@ export default function Colaboradores() {
 
   useEffect(() => {
     loadColaboradores()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleOpenCreateModal = () => {
-    setEditingColaborador(null)
-    setNome('')
-    setFuncao('')
-    setValorHora('')
-    setFormError(null)
-    setIsModalOpen(true)
+  const colaboradoresFiltrados = colaboradores
+    .filter((c) => c.nome.toLowerCase().includes(filtro.toLowerCase()))
+    .filter((c) => filtroEmpresa === 'TODAS' || c.empresa === filtroEmpresa)
+
+  const openCreate = () => {
+    setEditingId(null)
+    setForm({ nome: '', funcao: '', empresa: 'RAFAEL', valor_hora: 0 })
+    setFieldErrors({})
+    setIsDialogOpen(true)
   }
 
-  const handleOpenEditModal = (c: Colaborador) => {
-    setEditingColaborador(c)
-    setNome(c.nome)
-    setFuncao(c.funcao)
-    setValorHora(c.valor_hora && c.valor_hora > 0 ? c.valor_hora.toFixed(2) : '')
-    setFormError(null)
-    setIsModalOpen(true)
+  const openEdit = (c: Colaborador) => {
+    setEditingId(c.id)
+    setForm({
+      nome: c.nome,
+      funcao: c.funcao,
+      empresa: c.empresa,
+      valor_hora: c.valor_hora ?? 0,
+    })
+    setFieldErrors({})
+    setIsDialogOpen(true)
   }
 
-  const handleSave = async (e: React.FormEvent) => {
+  const validate = (): boolean => {
+    const errors: Record<string, string> = {}
+    if (!form.nome.trim()) errors.nome = 'Informe o nome do colaborador'
+    if (!form.funcao.trim()) errors.funcao = 'Informe a função'
+    if (!form.empresa) errors.empresa = 'Selecione a empresa'
+    setFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nome.trim() || !funcao.trim()) {
-      setFormError('Preencha o nome e a função do colaborador.')
-      return
-    }
-
-    const valorHoraNum = parseFloat(valorHora.replace(',', '.')) || 0
-    if (valorHoraNum < 0) {
-      setFormError('O valor da hora não pode ser negativo.')
-      return
-    }
-
+    if (!validate()) return
+    setIsSaving(true)
     try {
-      setIsSaving(true)
-      setFormError(null)
-
-      if (editingColaborador) {
-        await colaboradoresService.update(editingColaborador.id, {
-          nome,
-          funcao,
-          valor_hora: valorHoraNum,
-        })
+      if (editingId) {
+        await colaboradoresService.update(editingId, form)
         toast({
-          title: 'Colaborador atualizado',
-          description: `Os dados de ${nome} foram atualizados com sucesso.`,
+          title: 'Colaborador atualizado!',
+          description: `Dados de ${form.nome} salvos com sucesso.`,
         })
       } else {
-        await colaboradoresService.create({ nome, funcao, valor_hora: valorHoraNum })
+        await colaboradoresService.create(form)
         toast({
-          title: 'Colaborador cadastrado',
-          description: `${nome} foi adicionado à equipe com sucesso.`,
+          title: 'Colaborador cadastrado!',
+          description: `${form.nome} foi vinculado à empresa ${form.empresa}.`,
         })
       }
-
-      setIsModalOpen(false)
-      await loadColaboradores()
+      setIsDialogOpen(false)
+      loadColaboradores()
     } catch (err) {
       console.error(err)
-      setFormError('Erro ao salvar colaborador. Tente novamente.')
+      setFieldErrors(extractFieldErrors(err))
+      toast({
+        title: 'Erro ao salvar colaborador',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
-  const confirmDelete = (id: string) => {
-    setDeletingId(id)
-    setIsDeleteDialogOpen(true)
-  }
-
   const handleDelete = async () => {
-    if (!deletingId) return
+    if (!deleteId) return
+    setIsDeleting(true)
     try {
-      setIsDeleting(true)
-      await colaboradoresService.delete(deletingId)
+      await colaboradoresService.delete(deleteId)
       toast({
-        title: 'Colaborador removido',
-        description: 'O colaborador foi excluído do sistema.',
+        title: 'Colaborador excluído!',
+        description: 'O registro foi removido com sucesso.',
       })
-      setIsDeleteDialogOpen(false)
-      setDeletingId(null)
-      await loadColaboradores()
+      setDeleteId(null)
+      loadColaboradores()
     } catch (err) {
       console.error(err)
       toast({
-        title: 'Erro ao remover',
-        description: 'Não foi possível excluir o colaborador.',
+        title: 'Erro ao excluir colaborador',
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     } finally {
@@ -172,14 +165,13 @@ export default function Colaboradores() {
     }
   }
 
-  const filtered = colaboradores.filter((c) => {
-    const term = searchTerm.toLowerCase()
-    return c.nome.toLowerCase().includes(term) || c.funcao.toLowerCase().includes(term)
-  })
+  const getFirstValidationError = () => {
+    return fieldErrors.nome || fieldErrors.funcao || fieldErrors.empresa || null
+  }
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -187,133 +179,104 @@ export default function Colaboradores() {
             Colaboradores
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Cadastre, edite e gerencie os membros da equipe para apontamento de horas extras.
+            Cadastro com vínculo de empresa, função e valor da hora pré-definido.
           </p>
         </div>
-
         <Button
-          onClick={handleOpenCreateModal}
+          onClick={openCreate}
           className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-2"
         >
-          <UserPlus className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
           Novo Colaborador
         </Button>
       </div>
 
-      {/* Search and Stats bar */}
-      <Card>
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Buscar por nome ou função..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-slate-50 border-slate-200"
-              />
-            </div>
-            <div className="text-xs text-slate-500 font-medium self-start sm:self-center">
-              Total de colaboradores:{' '}
-              <span className="font-semibold text-slate-800">{filtered.length}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por nome..."
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="pl-9 bg-white border-slate-200"
+          />
+        </div>
+        <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>
+          <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200">
+            <Building2 className="h-4 w-4 text-slate-400 mr-1" />
+            <SelectValue placeholder="Empresa" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODAS">Todas as empresas</SelectItem>
+            {EMPRESAS.map((e) => (
+              <SelectItem key={e} value={e}>
+                {e}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* List / Table */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
-            <p className="text-sm">Carregando lista de colaboradores...</p>
+            <p className="text-sm">Carregando colaboradores...</p>
           </div>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : colaboradoresFiltrados.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-center">
           <Users className="h-12 w-12 text-slate-300 mb-3" />
           <h3 className="text-base font-semibold text-slate-800">Nenhum colaborador encontrado</h3>
-          <p className="text-sm text-slate-500 max-w-sm mt-1 mb-4">
-            {searchTerm
-              ? 'Nenhum resultado corresponde à sua busca. Tente outros termos.'
-              : 'Cadastre o primeiro colaborador para começar a registrar horas extras.'}
+          <p className="text-sm text-slate-500 max-w-sm mt-1">
+            Ajuste os filtros ou cadastre um novo colaborador vinculado à sua empresa.
           </p>
-          {searchTerm ? (
-            <Button variant="outline" size="sm" onClick={() => setSearchTerm('')}>
-              Limpar busca
-            </Button>
-          ) : (
-            <Button
-              onClick={handleOpenCreateModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Cadastrar Colaborador
-            </Button>
-          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((colab) => (
-            <Card key={colab.id} className="hover:shadow-md transition-shadow border-slate-200">
-              <CardContent className="p-5 flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shadow-sm">
-                        {colab.nome
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-900 leading-tight">{colab.nome}</h3>
-                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Briefcase className="h-3 w-3 text-slate-400" />
-                          {colab.funcao}
-                        </p>
-                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <DollarSign className="h-3 w-3 text-emerald-600" />
-                          {colab.valor_hora && colab.valor_hora > 0
-                            ? formatCurrency(colab.valor_hora)
-                            : 'Valor da hora não definido'}
-                        </p>
-                      </div>
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {colaboradoresFiltrados.map((c) => (
+            <Card key={c.id} className="border-slate-200 hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base text-slate-900">{c.nome}</CardTitle>
+                  <Badge variant="outline" className={badgeClasses[c.empresa] || ''}>
+                    {c.empresa}
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-500">{c.funcao}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                      Valor da hora
+                    </p>
+                    <p className="text-sm font-bold text-emerald-700">
+                      {(c.valor_hora ?? 0) > 0 ? formatCurrency(c.valor_hora) : 'Não definido'}
+                    </p>
                   </div>
                 </div>
-
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <Link
-                    to={`/novo-registro?colaboradorId=${colab.id}`}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(c)}
+                    className="flex-1 flex items-center gap-1.5"
                   >
-                    + Lançar Hora Extra
-                  </Link>
-
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(colab)}
-                      className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 hover:bg-slate-100"
-                      title="Editar colaborador"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => confirmDelete(colab.id)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                      title="Remover colaborador"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteId(c.id)}
+                    className="text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -321,83 +284,99 @@ export default function Colaboradores() {
         </div>
       )}
 
-      {/* Modal de Cadastro / Edição */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* Dialog de criação/edição */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingColaborador ? 'Editar Colaborador' : 'Novo Colaborador'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingColaborador
-                ? 'Atualize o nome e o cargo/função do colaborador.'
-                : 'Preencha os dados do colaborador para adicioná-lo ao sistema de ponto.'}
-            </DialogDescription>
+            <DialogTitle>{editingId ? 'Editar Colaborador' : 'Novo Colaborador'}</DialogTitle>
           </DialogHeader>
-
-          <form onSubmit={handleSave} className="space-y-4 py-2">
-            {formError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-                <span>{formError}</span>
-              </div>
-            )}
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="nome" className="text-xs font-semibold text-slate-700">
-                Nome Completo
+              <Label htmlFor="nome">
+                Nome <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="nome"
-                placeholder="Ex.: Carlos Eduardo Silva"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                required
-                autoFocus
+                value={form.nome}
+                onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                placeholder="Nome completo"
+                className={fieldErrors.nome ? 'border-red-300' : ''}
               />
+              {fieldErrors.nome && <p className="text-xs text-red-600">{fieldErrors.nome}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="funcao" className="text-xs font-semibold text-slate-700">
-                Função / Cargo
+              <Label htmlFor="funcao">
+                Função <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="funcao"
-                placeholder="Ex.: Motorista Carreteiro, Operador Logístico..."
-                value={funcao}
-                onChange={(e) => setFuncao(e.target.value)}
-                required
+                value={form.funcao}
+                onChange={(e) => setForm({ ...form, funcao: e.target.value })}
+                placeholder="Ex: Motorista, Operador..."
+                className={fieldErrors.funcao ? 'border-red-300' : ''}
               />
+              {fieldErrors.funcao && <p className="text-xs text-red-600">{fieldErrors.funcao}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label
-                htmlFor="valor_hora_colaborador"
-                className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+              <Label>
+                Empresa <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={form.empresa}
+                onValueChange={(value) => setForm({ ...form, empresa: value as Empresa })}
               >
-                <DollarSign className="h-3.5 w-3.5 text-blue-600" />
-                Valor da Hora (R$) — pré-definido
+                <SelectTrigger
+                  className={`bg-white ${fieldErrors.empresa ? 'border-red-300' : ''}`}
+                >
+                  <SelectValue placeholder="Selecione a empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMPRESAS.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.empresa ? (
+                <p className="text-xs text-red-600">{fieldErrors.empresa}</p>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Usada automaticamente nos lançamentos e relatórios.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="valor_hora">
+                Valor da hora (R$) — pre-definido{' '}
+                <span className="text-slate-400 font-normal">(opcional)</span>
               </Label>
               <Input
-                id="valor_hora_colaborador"
+                id="valor_hora"
                 type="number"
-                step="0.01"
                 min="0"
-                placeholder="Ex.: 25.00"
-                value={valorHora}
-                onChange={(e) => setValorHora(e.target.value)}
+                step="0.01"
+                value={form.valor_hora ?? 0}
+                onChange={(e) => setForm({ ...form, valor_hora: Number(e.target.value) })}
+                placeholder="Ex: 25.00"
               />
-              <p className="text-[11px] text-slate-500">
-                Usado automaticamente ao lançar uma hora extra deste colaborador (pode ser
-                sobrescrito no lançamento).
+              <p className="text-xs text-slate-500">
+                Preenche automaticamente o campo &quot;Valor Normal da Hora&quot; no lançamento.
               </p>
             </div>
 
-            <DialogFooter className="pt-2">
+            {getFirstValidationError() && (
+              <p className="text-xs text-red-600">{getFirstValidationError()}</p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsDialogOpen(false)}
                 disabled={isSaving}
               >
                 Cancelar
@@ -405,43 +384,33 @@ export default function Colaboradores() {
               <Button
                 type="submit"
                 disabled={isSaving}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    {editingColaborador ? 'Salvar Alterações' : 'Cadastrar'}
-                  </>
-                )}
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editingId ? 'Salvar alterações' : 'Cadastrar'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Confirmação de Exclusão */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      {/* Confirmação de exclusão */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Colaborador?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir colaborador?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá o colaborador do cadastro. Registros de horas extras vinculados a
-              ele também serão excluídos do histórico.
+              Esta ação não pode ser desfeita. O colaborador será removido do cadastro.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700"
             >
-              {isDeleting ? 'Excluindo...' : 'Sim, excluir'}
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

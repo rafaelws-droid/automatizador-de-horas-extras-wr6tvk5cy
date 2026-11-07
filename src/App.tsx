@@ -9,6 +9,7 @@ import Colaboradores from './pages/Colaboradores'
 import NovoRegistro from './pages/NovoRegistro'
 import Registros from './pages/Registros'
 import Relatorio from './pages/Relatorio'
+import Equipamentos from './pages/Equipamentos'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider } from './contexts/AuthContext'
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/novo-registro" element={<NovoRegistro />} />
             <Route path="/registros" element={<Registros />} />
             <Route path="/relatorio" element={<Relatorio />} />
+            <Route path="/equipamentos" element={<Equipamentos />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -1,5 +1,12 @@
 import pb from '@/lib/pocketbase/client'
-import type { Colaborador } from '@/types'
+import type { Colaborador, Empresa } from '@/types'
+
+export interface ColaboradorInput {
+  nome: string
+  funcao: string
+  empresa: Empresa
+  valor_hora?: number
+}
 
 export const colaboradoresService = {
   async getAll(): Promise<Colaborador[]> {
@@ -14,22 +21,21 @@ export const colaboradoresService = {
     return record
   },
 
-  async create(data: { nome: string; funcao: string; valor_hora?: number }): Promise<Colaborador> {
+  async create(data: ColaboradorInput): Promise<Colaborador> {
     const record = await pb.collection('colaboradores').create<Colaborador>({
       nome: data.nome.trim(),
       funcao: data.funcao.trim(),
+      empresa: data.empresa,
       valor_hora: data.valor_hora ?? 0,
     })
     return record
   },
 
-  async update(
-    id: string,
-    data: { nome: string; funcao: string; valor_hora?: number },
-  ): Promise<Colaborador> {
+  async update(id: string, data: ColaboradorInput): Promise<Colaborador> {
     const record = await pb.collection('colaboradores').update<Colaborador>(id, {
       nome: data.nome.trim(),
       funcao: data.funcao.trim(),
+      empresa: data.empresa,
       valor_hora: data.valor_hora ?? 0,
     })
     return record

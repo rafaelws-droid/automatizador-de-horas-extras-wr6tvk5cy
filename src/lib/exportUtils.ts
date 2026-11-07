@@ -1,4 +1,5 @@
 import type { RegistroHoraExtra } from '@/types'
+import { DESCONTO_REFEICAO_HORAS } from '@/services/registros'
 
 /**
  * Formata valor numérico para moeda brasileira (R$)
@@ -28,10 +29,95 @@ export function formatDateBR(dateStr: string | undefined | null): string {
   }
 }
 
+/** Nome de exibição do equipamento a partir do registro (com expand resolvido). */
+export function nomeEquipamento(reg: RegistroHoraExtra): string {
+  return reg.expand?.equipamento?.identificacao || '-'
+}
+
+/** Empresa do colaborador do registro (a partir do expand). */
+export function empresaColaborador(reg: RegistroHoraExtra): string {
+  return reg.expand?.colaborador?.empresa || '-'
+}
+
 export interface RelatorioIndividualInfo {
   nomeColaborador: string
   funcao: string
+  empresa: string
   periodo: string
+}
+
+export interface RelatorioResumo {
+  quantidade: number
+  horasBrutas: number
+  descontoRefeicao: number
+  horasLiquidas: number
+  valorTotal: number
+}
+
+/**
+ * Monta o resumo de totais de um conjunto de lançamentos (usado no relatório geral
+ * e nas exportações): lançamentos, horas brutas, desconto de refeição, líquidas e valor.
+ */
+export function buildRelatorioResumo(registros: RegistroHoraExtra[]): RelatorioResumo {
+  const horasBrutas = registros.reduce((acc, r) => {
+    const brutas = r.hora_fim ? r.quantidade_horas + DESCONTO_REFEICAO_HORAS : r.quantidade_horas
+    return acc + brutas
+  }, 0)
+  const descontoRefeicao = registros.filter((r) => r.hora_fim).length * DESCONTO_REFEICAO_HORAS
+
+  return {
+    quantidade: registros.length,
+    horasBrutas,
+    descontoRefeicao,
+    horasLiquidas: registros.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0),
+    valorTotal: registros.reduce((acc, r) => acc + (r.valor_total || 0), 0),
+  }
+}
+
+/**
+ * Monta as linhas de dados (valores crus, sem formatação) usadas nas exportações
+ * CSV/XLSX/PDF do relatório.
+ */
+export function buildRegistrosExportRows(registros: RegistroHoraExtra[]): string[][] {
+  return registros.map((r) => [
+    formatDateBR(r.data),
+    r.expand?.colaborador?.nome || '-',
+    r.expand?.colaborador?.empresa || '-',
+    r.hora,
+    r.hora_fim || '',
+    r.local_trabalho || '',
+    nomeEquipamento(r),
+    num(r.quantidade_horas),
+    r.percentual,
+    num(r.valor_hora),
+    num(r.valor_total),
+    r.observacao || '',
+  ])
+}
+
+export function sanitizeFilename(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase()
+}
+
+const escapeCsv = (str: string | number) => `"${String(str ?? '').replace(/"/g, '""')}"`
+const num = (n: number) => (n || 0).toFixed(2).replace('.', ',')
+
+function downloadCsv(csvContent: string, filename: string): void {
+  // BOM para garantir que Excel e Google Sheets abram corretamente com acentos UTF-8
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 /**
@@ -42,16 +128,14 @@ export function exportRelatorioIndividualToCsv(
   registros: RegistroHoraExtra[],
   info: RelatorioIndividualInfo,
 ): void {
-  const escapeCsv = (str: string | number) => `"${String(str ?? '').replace(/"/g, '""')}"`
-  const num = (n: number) => (n || 0).toFixed(2).replace('.', ',')
-
   const totalHoras = registros.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0)
   const totalValor = registros.reduce((acc, r) => acc + (r.valor_total || 0), 0)
 
   const cabecalho: string[][] = [
-    ['SILVEIRA - Relatório Individual de Horas Extras'],
+    ['SILVEIRA - Relatório de Horas Extras'],
     ['Colaborador', info.nomeColaborador],
     ['Função', info.funcao || '-'],
+    ['Empresa', info.empresa || '-'],
     ['Período', info.periodo],
     [],
   ]
@@ -60,6 +144,8 @@ export function exportRelatorioIndividualToCsv(
     'Data',
     'Horário de Início',
     'Horário de Término',
+    'Local de Trabalho',
+    'Equipamento',
     'Horas Líquidas',
     'Percentual',
     'Valor da Hora (R$)',
@@ -72,6 +158,8 @@ export function exportRelatorioIndividualToCsv(
       formatDateBR(r.data),
       r.hora,
       r.hora_fim || '',
+      r.local_trabalho || '',
+      nomeEquipamento(r),
       num(r.quantidade_horas),
       r.percentual,
       num(r.valor_hora),
@@ -80,7 +168,9 @@ export function exportRelatorioIndividualToCsv(
     ].map(escapeCsv),
   )
 
-  const totais = ['Total', '', '', num(totalHoras), '', '', num(totalValor), ''].map(escapeCsv)
+  const totais = ['Total', '', '', '', '', num(totalHoras), '', '', num(totalValor), ''].map(
+    escapeCsv,
+  )
 
   const linhas = [
     ...cabecalho.map((linha) => linha.map(escapeCsv).join(';')),
@@ -89,24 +179,11 @@ export function exportRelatorioIndividualToCsv(
     totais.join(';'),
   ]
 
-  // BOM para garantir que Excel e Google Sheets abram corretamente com acentos UTF-8
-  const csvContent = '\uFEFF' + linhas.join('\r\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const todayStr = new Date().toISOString().split('T')[0]
-  const nomeArquivo = info.nomeColaborador
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-    .toLowerCase()
-  link.setAttribute('href', url)
-  link.setAttribute('download', `relatorio_${nomeArquivo || 'colaborador'}_${todayStr}.csv`)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  downloadCsv(
+    linhas.join('\r\n'),
+    `relatorio_${sanitizeFilename(info.nomeColaborador) || 'colaborador'}_${todayStr}.csv`,
+  )
 }
 
 /**
@@ -120,9 +197,12 @@ export function exportRegistrosToCsv(
     'ID Registro',
     'Colaborador',
     'Função',
+    'Empresa',
     'Data',
     'Horário de Início',
     'Horário de Término',
+    'Local de Trabalho',
+    'Equipamento',
     'Quantidade de Horas',
     'Valor da Hora (R$)',
     'Percentual',
@@ -139,18 +219,16 @@ export function exportRegistrosToCsv(
     const valorTotalStr = (r.valor_total || 0).toFixed(2).replace('.', ',')
     const criadoEm = r.created ? new Date(r.created).toLocaleString('pt-BR') : '-'
 
-    const escapeCsv = (str: string | number) => {
-      const s = String(str ?? '').replace(/"/g, '""')
-      return `"${s}"`
-    }
-
     return [
       escapeCsv(r.id),
       escapeCsv(nomeColaborador),
       escapeCsv(funcaoColaborador),
+      escapeCsv(empresaColaborador(r)),
       escapeCsv(dataFormatada),
       escapeCsv(r.hora),
       escapeCsv(r.hora_fim || ''),
+      escapeCsv(r.local_trabalho || ''),
+      escapeCsv(nomeEquipamento(r)),
       escapeCsv((r.quantidade_horas || 0).toString().replace('.', ',')),
       escapeCsv(valorHoraStr),
       escapeCsv(r.percentual),
@@ -160,16 +238,7 @@ export function exportRegistrosToCsv(
     ].join(';')
   })
 
-  // BOM para garantir que Excel e Google Sheets abram corretamente com acentos UTF-8
-  const csvContent = '\uFEFF' + [headers.map((h) => `"${h}"`).join(';'), ...rows].join('\r\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
+  const csvContent = [headers.map((h) => `"${h}"`).join(';'), ...rows].join('\r\n')
   const todayStr = new Date().toISOString().split('T')[0]
-  link.setAttribute('href', url)
-  link.setAttribute('download', `${filenamePrefix}_${todayStr}.csv`)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  downloadCsv(csvContent, `${filenamePrefix}_${todayStr}.csv`)
 }

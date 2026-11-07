@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { colaboradoresService } from '@/services/colaboradores'
+import { equipamentosService } from '@/services/equipamentos'
 import {
   registrosService,
   calcularValorTotalHoraExtra,
@@ -8,7 +9,8 @@ import {
   calcularQuantidadeHorasLiquidas,
   DESCONTO_REFEICAO_HORAS,
 } from '@/services/registros'
-import type { Colaborador, PercentualHoraExtra } from '@/types'
+import type { Colaborador, Equipamento, PercentualHoraExtra } from '@/types'
+import { LOCAIS_TRABALHO } from '@/types'
 import { formatCurrency } from '@/lib/exportUtils'
 import {
   Clock,
@@ -18,7 +20,8 @@ import {
   Percent,
   FileText,
   Calculator,
-  ArrowRight,
+  MapPin,
+  Wrench,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -44,6 +47,7 @@ export default function NovoRegistro() {
   const { toast } = useToast()
 
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [isLoadingColabs, setIsLoadingColabs] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +56,8 @@ export default function NovoRegistro() {
   const [colaboradorId, setColaboradorId] = useState<string>(
     searchParams.get('colaboradorId') || '',
   )
+  const [localTrabalho, setLocalTrabalho] = useState<string>('')
+  const [equipamentoId, setEquipamentoId] = useState<string>('')
   const [data, setData] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [hora, setHora] = useState<string>('18:00')
   const [horaFim, setHoraFim] = useState<string>('20:00')
@@ -62,13 +68,17 @@ export default function NovoRegistro() {
   const [percentual, setPercentual] = useState<PercentualHoraExtra>('50%')
   const [observacao, setObservacao] = useState<string>('')
 
-  // Load Colaboradores
+  // Load Colaboradores e Equipamentos
   useEffect(() => {
-    const fetchColabs = async () => {
+    const fetchData = async () => {
       try {
         setIsLoadingColabs(true)
-        const list = await colaboradoresService.getAll()
+        const [list, eqs] = await Promise.all([
+          colaboradoresService.getAll(),
+          equipamentosService.getAll(),
+        ])
         setColaboradores(list)
+        setEquipamentos(eqs)
         if (!colaboradorId && list.length > 0) {
           setColaboradorId(list[0].id)
         }
@@ -79,7 +89,8 @@ export default function NovoRegistro() {
         setIsLoadingColabs(false)
       }
     }
-    fetchColabs()
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Calculate live preview
@@ -113,6 +124,14 @@ export default function NovoRegistro() {
       setError('Selecione um colaborador.')
       return
     }
+    if (!localTrabalho) {
+      setError('Selecione o Local de Trabalho.')
+      return
+    }
+    if (!equipamentoId) {
+      setError('Selecione o Equipamento/Veículo utilizado.')
+      return
+    }
     if (!data) {
       setError('Informe a data da hora extra.')
       return
@@ -142,6 +161,8 @@ export default function NovoRegistro() {
       setIsSubmitting(true)
       await registrosService.create({
         colaborador: colaboradorId,
+        local_trabalho: localTrabalho,
+        equipamento: equipamentoId,
         data,
         hora,
         hora_fim: horaFim,
@@ -247,6 +268,76 @@ export default function NovoRegistro() {
                   <p className="text-xs text-slate-500">
                     Função cadastrada:{' '}
                     <span className="font-medium text-slate-700">{selectedColaborador.funcao}</span>
+                    {' — '}
+                    Empresa:{' '}
+                    <span className="font-medium text-blue-700">
+                      {selectedColaborador.empresa || 'não definida'}
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              {/* Local de Trabalho */}
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="local_trabalho"
+                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                  Local de Trabalho <span className="text-red-500">*</span>
+                </Label>
+                <Select value={localTrabalho} onValueChange={setLocalTrabalho}>
+                  <SelectTrigger id="local_trabalho" className="bg-white">
+                    <SelectValue placeholder="Selecione onde o colaborador trabalhou" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCAIS_TRABALHO.map((local) => (
+                      <SelectItem key={local} value={local}>
+                        {local}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Equipamento / Veículo */}
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="equipamento"
+                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                >
+                  <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                  Equipamento / Veículo <span className="text-red-500">*</span>
+                </Label>
+                <Select value={equipamentoId} onValueChange={setEquipamentoId}>
+                  <SelectTrigger id="equipamento" className="bg-white">
+                    <SelectValue placeholder="Selecione o equipamento utilizado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {equipamentos.map((eq) => (
+                      <SelectItem key={eq.id} value={eq.id}>
+                        {eq.identificacao}
+                        {eq.descricao ? (
+                          <span className="text-slate-500 text-xs"> — {eq.descricao}</span>
+                        ) : null}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {equipamentos.length === 0 ? (
+                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    Nenhum equipamento cadastrado —{' '}
+                    <Link to="/equipamentos" className="underline font-medium">
+                      cadastrar equipamento
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500">
+                    Equipamentos podem variar entre lançamentos —{' '}
+                    <Link to="/equipamentos" className="underline">
+                      gerenciar
+                    </Link>
                   </p>
                 )}
               </div>

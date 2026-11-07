@@ -2,7 +2,9 @@ import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { registrosService } from '@/services/registros'
 import { colaboradoresService } from '@/services/colaboradores'
-import type { RegistroHoraExtra, Colaborador } from '@/types'
+import { equipamentosService } from '@/services/equipamentos'
+import type { RegistroHoraExtra, Colaborador, Equipamento } from '@/types'
+import { EMPRESAS, LOCAIS_TRABALHO } from '@/types'
 import { formatCurrency, formatDateBR, exportRegistrosToCsv } from '@/lib/exportUtils'
 import { exportRegistrosToXlsx } from '@/lib/exportXlsx'
 import {
@@ -21,6 +23,9 @@ import {
   Loader2,
   Users,
   FileBarChart,
+  Building2,
+  MapPin,
+  Wrench,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,12 +54,16 @@ export default function Registros() {
   const { toast } = useToast()
   const [registros, setRegistros] = useState<RegistroHoraExtra[]>([])
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [filterColaborador, setFilterColaborador] = useState<string>('todos')
   const [filterPercentual, setFilterPercentual] = useState<string>('todos')
+  const [filterEmpresa, setFilterEmpresa] = useState<string>('todas')
+  const [filterLocal, setFilterLocal] = useState<string>('todos')
+  const [filterEquipamento, setFilterEquipamento] = useState<string>('todos')
 
   // Deletion modal
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -63,12 +72,14 @@ export default function Registros() {
   const loadData = async () => {
     try {
       setIsLoading(true)
-      const [regsData, colabsData] = await Promise.all([
+      const [regsData, colabsData, eqsData] = await Promise.all([
         registrosService.getAll(),
         colaboradoresService.getAll(),
+        equipamentosService.getAll(),
       ])
       setRegistros(regsData)
       setColaboradores(colabsData)
+      setEquipamentos(eqsData)
     } catch (err) {
       console.error(err)
       toast({
@@ -127,9 +138,32 @@ export default function Registros() {
 
       const matchesPercentual = filterPercentual === 'todos' || reg.percentual === filterPercentual
 
-      return matchesSearch && matchesColab && matchesPercentual
+      const colabEmpresa = reg.expand?.colaborador?.empresa || ''
+      const matchesEmpresa = filterEmpresa === 'todas' || colabEmpresa === filterEmpresa
+
+      const matchesLocal = filterLocal === 'todos' || (reg.local_trabalho || '') === filterLocal
+
+      const matchesEquipamento =
+        filterEquipamento === 'todos' || (reg.equipamento || '') === filterEquipamento
+
+      return (
+        matchesSearch &&
+        matchesColab &&
+        matchesPercentual &&
+        matchesEmpresa &&
+        matchesLocal &&
+        matchesEquipamento
+      )
     })
-  }, [registros, searchTerm, filterColaborador, filterPercentual])
+  }, [
+    registros,
+    searchTerm,
+    filterColaborador,
+    filterPercentual,
+    filterEmpresa,
+    filterLocal,
+    filterEquipamento,
+  ])
 
   // Summary figures
   const totalHoras = filteredRegistros.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0)
@@ -311,6 +345,60 @@ export default function Registros() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Filter by Empresa */}
+            <div>
+              <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
+                <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                  <Building2 className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as empresas</SelectItem>
+                  {EMPRESAS.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filter by Local de Trabalho */}
+            <div>
+              <Select value={filterLocal} onValueChange={setFilterLocal}>
+                <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                  <SelectValue placeholder="Local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os locais</SelectItem>
+                  {LOCAIS_TRABALHO.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filter by Equipamento */}
+            <div>
+              <Select value={filterEquipamento} onValueChange={setFilterEquipamento}>
+                <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                  <Wrench className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                  <SelectValue placeholder="Equipamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os equipamentos</SelectItem>
+                  {equipamentos.map((eq) => (
+                    <SelectItem key={eq.id} value={eq.id}>
+                      {eq.identificacao}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -328,11 +416,21 @@ export default function Registros() {
           <History className="h-12 w-12 text-slate-300 mb-3" />
           <h3 className="text-base font-semibold text-slate-800">Nenhum registro encontrado</h3>
           <p className="text-sm text-slate-500 max-w-sm mt-1 mb-4">
-            {searchTerm || filterColaborador !== 'todos' || filterPercentual !== 'todos'
+            {searchTerm ||
+            filterColaborador !== 'todos' ||
+            filterPercentual !== 'todos' ||
+            filterEmpresa !== 'todas' ||
+            filterLocal !== 'todos' ||
+            filterEquipamento !== 'todos'
               ? 'Nenhum lançamento corresponde aos filtros selecionados. Tente ajustar os termos.'
               : 'Nenhuma hora extra foi lançada ainda. Clique no botão abaixo para criar o primeiro registro.'}
           </p>
-          {searchTerm || filterColaborador !== 'todos' || filterPercentual !== 'todos' ? (
+          {searchTerm ||
+          filterColaborador !== 'todos' ||
+          filterPercentual !== 'todos' ||
+          filterEmpresa !== 'todas' ||
+          filterLocal !== 'todos' ||
+          filterEquipamento !== 'todos' ? (
             <Button
               variant="outline"
               size="sm"
@@ -340,6 +438,9 @@ export default function Registros() {
                 setSearchTerm('')
                 setFilterColaborador('todos')
                 setFilterPercentual('todos')
+                setFilterEmpresa('todas')
+                setFilterLocal('todos')
+                setFilterEquipamento('todos')
               }}
             >
               Limpar filtros
@@ -360,6 +461,9 @@ export default function Registros() {
               <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-600">
                 <tr>
                   <th className="py-3.5 px-4">Colaborador</th>
+                  <th className="py-3.5 px-4">Empresa</th>
+                  <th className="py-3.5 px-4">Local</th>
+                  <th className="py-3.5 px-4">Equipamento</th>
                   <th className="py-3.5 px-4">Data & Horário</th>
                   <th className="py-3.5 px-4 text-center">Horas</th>
                   <th className="py-3.5 px-4 text-right">Valor Hora</th>
@@ -373,6 +477,9 @@ export default function Registros() {
                 {filteredRegistros.map((reg) => {
                   const colabNome = reg.expand?.colaborador?.nome || 'Colaborador não encontrado'
                   const colabFuncao = reg.expand?.colaborador?.funcao || '-'
+                  const colabEmpresa = reg.expand?.colaborador?.empresa
+                  const equipamentoIdent =
+                    equipamentos.find((eq) => eq.id === reg.equipamento)?.identificacao || null
 
                   return (
                     <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
@@ -381,6 +488,39 @@ export default function Registros() {
                           {colabNome}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">{colabFuncao}</div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {colabEmpresa ? (
+                          <Badge
+                            variant="outline"
+                            className={
+                              colabEmpresa === 'RAFAEL'
+                                ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                : colabEmpresa === 'RUANN'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                  : 'bg-purple-100 text-purple-800 border-purple-200'
+                            }
+                          >
+                            {colabEmpresa}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-300 italic">—</span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap text-xs text-slate-600">
+                        {reg.local_trabalho || <span className="text-slate-300 italic">—</span>}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs text-slate-600">
+                        {equipamentoIdent || reg.equipamento ? (
+                          equipamentoIdent || (
+                            <span className="text-slate-400 italic">removido</span>
+                          )
+                        ) : (
+                          <span className="text-slate-300 italic">—</span>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap">

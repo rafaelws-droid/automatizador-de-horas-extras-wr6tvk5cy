@@ -1,19 +1,16 @@
 import * as XLSX from 'xlsx'
 import type { RegistroHoraExtra } from '@/types'
-import { formatDateBR, type RelatorioIndividualInfo } from './exportUtils'
+import {
+  formatDateBR,
+  sanitizeFilename,
+  nomeEquipamento,
+  empresaColaborador,
+  type RelatorioIndividualInfo,
+} from './exportUtils'
 
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 const num = (n: number) => (n || 0).toFixed(2).replace('.', ',')
-
-function sanitizeFilename(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-    .toLowerCase()
-}
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
@@ -37,14 +34,17 @@ function saveWorkbook(wb: XLSX.WorkBook, filename: string): void {
 function aoaToSheet(aoa: (string | number)[][]): XLSX.WorkSheet {
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   ws['!cols'] = [
-    { wch: 16 },
+    { wch: 18 },
     { wch: 22 },
-    { wch: 18 },
     { wch: 16 },
+    { wch: 12 },
+    { wch: 14 },
     { wch: 16 },
     { wch: 14 },
-    { wch: 18 },
     { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 18 },
     { wch: 34 },
     { wch: 18 },
   ]
@@ -63,9 +63,12 @@ export function exportRegistrosToXlsx(
     'ID Registro',
     'Colaborador',
     'Função',
+    'Empresa',
     'Data',
     'Horário de Início',
     'Horário de Término',
+    'Local de Trabalho',
+    'Equipamento',
     'Quantidade de Horas',
     'Valor da Hora (R$)',
     'Percentual',
@@ -78,9 +81,12 @@ export function exportRegistrosToXlsx(
     r.id,
     r.expand?.colaborador?.nome || 'Colaborador não encontrado',
     r.expand?.colaborador?.funcao || '-',
+    empresaColaborador(r),
     formatDateBR(r.data),
     r.hora,
     r.hora_fim || '',
+    r.local_trabalho || '',
+    nomeEquipamento(r),
     num(r.quantidade_horas),
     num(r.valor_hora),
     r.percentual,
@@ -95,7 +101,7 @@ export function exportRegistrosToXlsx(
 }
 
 /**
- * Exporta o relatório individual de um colaborador para XLSX de verdade (planilha Excel),
+ * Exporta o relatório individual/de filtros para XLSX de verdade (planilha Excel),
  * com o mesmo cabeçalho ("SILVEIRA"), colunas e dados do CSV (exportRelatorioIndividualToCsv).
  */
 export function exportRelatorioIndividualToXlsx(
@@ -106,9 +112,10 @@ export function exportRelatorioIndividualToXlsx(
   const totalValor = registros.reduce((acc, r) => acc + (r.valor_total || 0), 0)
 
   const cabecalho: (string | number)[][] = [
-    ['SILVEIRA - Relatório Individual de Horas Extras'],
+    ['SILVEIRA - Relatório de Horas Extras'],
     ['Colaborador', info.nomeColaborador],
     ['Função', info.funcao || '-'],
+    ['Empresa', info.empresa || '-'],
     ['Período', info.periodo],
     [],
   ]
@@ -117,6 +124,8 @@ export function exportRelatorioIndividualToXlsx(
     'Data',
     'Horário de Início',
     'Horário de Término',
+    'Local de Trabalho',
+    'Equipamento',
     'Horas Líquidas',
     'Percentual',
     'Valor da Hora (R$)',
@@ -128,6 +137,8 @@ export function exportRelatorioIndividualToXlsx(
     formatDateBR(r.data),
     r.hora,
     r.hora_fim || '',
+    r.local_trabalho || '',
+    nomeEquipamento(r),
     num(r.quantidade_horas),
     r.percentual,
     num(r.valor_hora),
@@ -135,7 +146,7 @@ export function exportRelatorioIndividualToXlsx(
     r.observacao || '',
   ])
 
-  const totais = ['Total', '', '', num(totalHoras), '', '', num(totalValor), '']
+  const totais = ['Total', '', '', '', '', num(totalHoras), '', '', num(totalValor), '']
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(

@@ -9,6 +9,8 @@ export interface CreateRegistroInput {
   quantidade_horas: number
   valor_hora: number
   percentual: PercentualHoraExtra
+  local_trabalho: string
+  equipamento: string
   observacao?: string
 }
 
@@ -56,7 +58,7 @@ export const registrosService = {
   async getAll(filter?: string): Promise<RegistroHoraExtra[]> {
     const records = await pb.collection('registros_horas').getFullList<RegistroHoraExtra>({
       sort: '-data,-created',
-      expand: 'colaborador',
+      expand: 'colaborador,equipamento',
       filter: filter || '',
     })
     return records
@@ -65,7 +67,7 @@ export const registrosService = {
   async getRecent(limit = 5): Promise<RegistroHoraExtra[]> {
     const result = await pb.collection('registros_horas').getList<RegistroHoraExtra>(1, limit, {
       sort: '-data,-created',
-      expand: 'colaborador',
+      expand: 'colaborador,equipamento',
     })
     return result.items
   },
@@ -87,10 +89,12 @@ export const registrosService = {
         valor_hora: data.valor_hora,
         percentual: data.percentual,
         valor_total,
+        local_trabalho: data.local_trabalho,
+        equipamento: data.equipamento,
         observacao: data.observacao ? data.observacao.trim() : '',
       },
       {
-        expand: 'colaborador',
+        expand: 'colaborador,equipamento',
       },
     )
 

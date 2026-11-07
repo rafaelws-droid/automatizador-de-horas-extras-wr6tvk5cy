@@ -1,6 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Users, PlusCircle, History, LayoutDashboard, LogOut, FileBarChart } from 'lucide-react'
+import {
+  Users,
+  PlusCircle,
+  History,
+  LayoutDashboard,
+  LogOut,
+  FileBarChart,
+  Wrench,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
 
@@ -11,6 +19,7 @@ export function Navbar() {
   const navItems = [
     { label: 'Início', path: '/', icon: LayoutDashboard },
     { label: 'Colaboradores', path: '/colaboradores', icon: Users },
+    { label: 'Equipamentos', path: '/equipamentos', icon: Wrench },
     { label: 'Novo Registro', path: '/novo-registro', icon: PlusCircle },
     { label: 'Registros', path: '/registros', icon: History },
     { label: 'Relatório', path: '/relatorio', icon: FileBarChart },
@@ -80,7 +89,7 @@ export function Navbar() {
 
       {/* Mobile Nav strip */}
       <div className="md:hidden border-t border-slate-100 bg-slate-50/80 px-2 py-1.5">
-        <div className="grid grid-cols-5 gap-1 text-center">
+        <div className="grid grid-cols-3 gap-1 text-center">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path

@@ -1,22 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import { registrosService } from '@/services/registros'
 import { colaboradoresService } from '@/services/colaboradores'
-import type { RegistroHoraExtra, Colaborador } from '@/types'
-import { formatCurrency, formatDateBR, exportRelatorioIndividualToCsv } from '@/lib/exportUtils'
-import { exportRelatorioIndividualToXlsx } from '@/lib/exportXlsx'
-import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
+import { equipamentosService } from '@/services/equipamentos'
+import type { Colaborador, Equipamento, RegistroHoraExtra } from '@/types'
+import { EMPRESAS, LOCAIS_TRABALHO } from '@/types'
+import {
+  formatCurrency,
+  formatDateBR,
+  exportRegistrosToCsv,
+  buildRelatorioResumo,
+  type RelatorioResumo,
+} from '@/lib/exportUtils'
+import { exportRegistrosToXlsx } from '@/lib/exportXlsx'
+import { exportRegistrosToPdf } from '@/lib/exportPdf'
 import {
   FileBarChart,
   FileSpreadsheet,
   FileText,
+  FileDown,
+  Search,
+  Building2,
+  MapPin,
+  Wrench,
+  User,
+  Calendar,
   Clock,
   DollarSign,
+  Filter,
   Loader2,
-  User,
+  Link2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -29,350 +46,553 @@ import { useToast } from '@/hooks/use-toast'
 
 export default function Relatorio() {
   const { toast } = useToast()
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
-  const [colaboradorId, setColaboradorId] = useState<string>('')
+  const [searchParams] = useSearchParams()
+  const colaboradorIdParam = searchParams.get('colaboradorId')
+
   const [registros, setRegistros] = useState<RegistroHoraExtra[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Período opcional (YYYY-MM-DD)
-  const [dataInicio, setDataInicio] = useState('')
-  const [dataFim, setDataFim] = useState('')
+  const [filterColaborador, setFilterColaborador] = useState<string>(colaboradorIdParam || 'todos')
+  const [filterEmpresa, setFilterEmpresa] = useState<string>('todas')
+  const [filterLocal, setFilterLocal] = useState<string>('todos')
+  const [filterEquipamento, setFilterEquipamento] = useState<string>('todos')
+  const [dataInicio, setDataInicio] = useState<string>('')
+  const [dataFim, setDataFim] = useState<string>('')
 
-  useEffect(() => {
-    colaboradoresService
-      .getAll()
-      .then(setColaboradores)
-      .catch((err) => {
-        console.error(err)
-        toast({
-          title: 'Erro ao carregar colaboradores',
-          description: 'Não foi possível buscar a lista de colaboradores.',
-          variant: 'destructive',
-        })
-      })
-  }, [])
-
-  useEffect(() => {
-    if (!colaboradorId) {
-      setRegistros([])
-      return
-    }
-    let cancelled = false
-    setIsLoading(true)
-    registrosService
-      .getAll(`colaborador = "${colaboradorId}"`)
-      .then((data) => {
-        if (!cancelled) setRegistros(data)
-      })
-      .catch((err) => {
-        console.error(err)
-        if (!cancelled) {
-          toast({
-            title: 'Erro ao carregar registros',
-            description: 'Não foi possível buscar os registros do colaborador.',
-            variant: 'destructive',
-          })
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [colaboradorId])
-
-  const colaboradorSelecionado = colaboradores.find((c) => c.id === colaboradorId)
-
-  // Registros do período, em ordem cronológica
-  const registrosPeriodo = useMemo(() => {
-    return registros
-      .filter((r) => (!dataInicio || r.data >= dataInicio) && (!dataFim || r.data <= dataFim))
-      .sort((a, b) => a.data.localeCompare(b.data) || (a.hora || '').localeCompare(b.hora || ''))
-  }, [registros, dataInicio, dataFim])
-
-  const totalHorasLiquidas = registrosPeriodo.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0)
-  const valorTotal = registrosPeriodo.reduce((acc, r) => acc + (r.valor_total || 0), 0)
-
-  const periodoTexto =
-    dataInicio || dataFim
-      ? `${dataInicio ? formatDateBR(dataInicio) : 'início'} a ${dataFim ? formatDateBR(dataFim) : 'hoje'}`
-      : 'Todo o período'
-
-  const infoExportacao = colaboradorSelecionado
-    ? {
-        nomeColaborador: colaboradorSelecionado.nome,
-        funcao: colaboradorSelecionado.funcao,
-        periodo: periodoTexto,
-      }
-    : null
-
-  const validarExportacao = () => {
-    if (!colaboradorSelecionado || registrosPeriodo.length === 0) {
+  const loadData = async () => {
+    try {
+      setIsLoading(true)
+      const [regs, cols, eqs] = await Promise.all([
+        registrosService.getAll(),
+        colaboradoresService.getAll(),
+        equipamentosService.getAll(),
+      ])
+      setRegistros(regs)
+      setColaboradores(cols)
+      setEquipamentos(eqs)
+    } catch (err) {
+      console.error(err)
       toast({
-        title: 'Nada para exportar',
-        description: 'Selecione um colaborador com registros no período.',
+        title: 'Erro ao carregar dados',
+        description: 'Não foi possível buscar os lançamentos.',
         variant: 'destructive',
       })
-      return false
+    } finally {
+      setIsLoading(false)
     }
-    return true
+  }
+
+  useEffect(() => {
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const filteredRegistros = useMemo(() => {
+    return registros
+      .filter((reg) => {
+        if (filterColaborador !== 'todos' && reg.colaborador !== filterColaborador) return false
+        if (filterEmpresa !== 'todas' && (reg.expand?.colaborador?.empresa || '') !== filterEmpresa)
+          return false
+        if (filterLocal !== 'todos' && (reg.local_trabalho || '') !== filterLocal) return false
+        if (filterEquipamento !== 'todos' && (reg.equipamento || '') !== filterEquipamento)
+          return false
+        if (dataInicio && reg.data < dataInicio) return false
+        if (dataFim && reg.data > dataFim) return false
+        return true
+      })
+      .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+  }, [
+    registros,
+    filterColaborador,
+    filterEmpresa,
+    filterLocal,
+    filterEquipamento,
+    dataInicio,
+    dataFim,
+  ])
+
+  const resumo: RelatorioResumo = useMemo(
+    () => buildRelatorioResumo(filteredRegistros),
+    [filteredRegistros],
+  )
+
+  const getEquipamentoIdent = (id?: string) =>
+    equipamentos.find((eq) => eq.id === id)?.identificacao || id || ''
+
+  const hasFiltros =
+    filterColaborador !== 'todos' ||
+    filterEmpresa !== 'todas' ||
+    filterLocal !== 'todos' ||
+    filterEquipamento !== 'todos' ||
+    !!dataInicio ||
+    !!dataFim
+
+  const limparFiltros = () => {
+    setFilterColaborador('todos')
+    setFilterEmpresa('todas')
+    setFilterLocal('todos')
+    setFilterEquipamento('todos')
+    setDataInicio('')
+    setDataFim('')
+  }
+
+  const getTituloFiltros = () => {
+    const partes: string[] = []
+    if (filterColaborador !== 'todos') {
+      const colab = colaboradores.find((c) => c.id === filterColaborador)
+      partes.push(`Colaborador: ${colab?.nome || '—'}`)
+    }
+    if (filterEmpresa !== 'todas') partes.push(`Empresa: ${filterEmpresa}`)
+    if (filterLocal !== 'todos') partes.push(`Local: ${filterLocal}`)
+    if (filterEquipamento !== 'todos')
+      partes.push(`Equipamento: ${getEquipamentoIdent(filterEquipamento)}`)
+    if (dataInicio) partes.push(`De: ${formatDateBR(dataInicio)}`)
+    if (dataFim) partes.push(`Até: ${formatDateBR(dataFim)}`)
+    return partes.length > 0 ? partes.join(' | ') : 'Todos os lançamentos'
+  }
+
+  const getNomeArquivo = () => {
+    const colab =
+      filterColaborador !== 'todos'
+        ? colaboradores.find((c) => c.id === filterColaborador)?.nome || 'colaborador'
+        : null
+    const base = colab ? `relatorio_${colab.replace(/\s+/g, '_').toLowerCase()}` : 'relatorio_geral'
+    return `${base}_${dataInicio || 'inicio'}_${dataFim || dataHoje}`
+  }
+
+  const dataHoje = new Date().toISOString().split('T')[0]
+
+  const validarExportacao = (): number => {
+    if (filteredRegistros.length === 0) {
+      toast({
+        title: 'Nenhum lançamento para exportar',
+        description: 'Ajuste os filtros ou lance registros primeiro.',
+        variant: 'destructive',
+      })
+      return 0
+    }
+    return filteredRegistros.length
   }
 
   const handleExportCsv = () => {
-    if (!validarExportacao() || !infoExportacao) return
-    exportRelatorioIndividualToCsv(registrosPeriodo, infoExportacao)
+    if (!validarExportacao()) return
+    exportRegistrosToCsv(filteredRegistros, getNomeArquivo())
     toast({
-      title: 'Relatório exportado com sucesso!',
-      description: `${registrosPeriodo.length} registros de ${colaboradorSelecionado?.nome} exportados para CSV.`,
+      title: 'CSV exportado com sucesso!',
+      description: `${filteredRegistros.length} lançamentos exportados.`,
     })
   }
 
   const handleExportXlsx = () => {
-    if (!validarExportacao() || !infoExportacao) return
-    exportRelatorioIndividualToXlsx(registrosPeriodo, infoExportacao)
+    if (!validarExportacao()) return
+    exportRegistrosToXlsx(filteredRegistros, getNomeArquivo())
     toast({
-      title: 'Arquivo Excel exportado com sucesso!',
-      description: `${registrosPeriodo.length} registros de ${colaboradorSelecionado?.nome} exportados para XLSX.`,
+      title: 'Excel exportado com sucesso!',
+      description: `${filteredRegistros.length} lançamentos exportados para XLSX.`,
     })
   }
 
+  const handleExportPdf = () => {
+    if (!validarExportacao()) return
+    const colab =
+      filterColaborador !== 'todos'
+        ? colaboradores.find((c) => c.id === filterColaborador) || null
+        : null
+    const empresaFiltro = filterEmpresa !== 'todas' ? filterEmpresa : colab?.empresa || null
+    exportRegistrosToPdf(filteredRegistros, {
+      titulo: colab ? 'Relatório por Colaborador' : 'Relatório Geral de Horas Extras',
+      filtroDescricao: getTituloFiltros(),
+      empresa: empresaFiltro,
+      resumo,
+    })
+    toast({
+      title: 'PDF gerado com sucesso!',
+      description: `${filteredRegistros.length} lançamentos exportados com resumo e logo.`,
+    })
+  }
+
+  const nomeColaboradorAtalho = colaboradorIdParam
+    ? colaboradores.find((c) => c.id === colaboradorIdParam)?.nome
+    : null
+
   return (
     <div className="space-y-6">
-      {/* Cabeçalho com logo */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <img
-            src={logoSilveira}
-            alt="Logo Silveira"
-            className="h-16 w-16 rounded-lg bg-white object-contain"
-          />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-              <FileBarChart className="h-7 w-7 text-blue-600" />
-              Relatório Individual
-            </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Horas extras líquidas (com desconto de refeição), percentuais e valores por
-              colaborador.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <FileBarChart className="h-7 w-7 text-blue-600" />
+            Relatórios
+          </h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Relatório geral ou individual com filtros combináveis de empresa, colaborador, local,
+            equipamento e período.
+          </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <Button
-            onClick={handleExportCsv}
-            disabled={!colaboradorSelecionado || registrosPeriodo.length === 0}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2"
+            onClick={handleExportPdf}
+            disabled={filteredRegistros.length === 0}
+            className="bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-2"
           >
-            <FileText className="h-4 w-4" />
-            Exportar CSV
+            <FileDown className="h-4 w-4" />
+            PDF
           </Button>
           <Button
             onClick={handleExportXlsx}
-            disabled={!colaboradorSelecionado || registrosPeriodo.length === 0}
+            disabled={filteredRegistros.length === 0}
             className="bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm flex items-center gap-2"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            Exportar XLSX
+            Excel
+          </Button>
+          <Button
+            onClick={handleExportCsv}
+            disabled={filteredRegistros.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            CSV
           </Button>
         </div>
       </div>
 
+      {nomeColaboradorAtalho && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-sm text-blue-800">
+          <Link2 className="h-4 w-4 shrink-0" />
+          <span>
+            Relatório aberto pelo atalho do colaborador <strong>{nomeColaboradorAtalho}</strong>.
+            Ajuste os filtros abaixo se precisar — ou{' '}
+            <button type="button" onClick={limparFiltros} className="underline font-medium">
+              veja o relatório geral
+            </button>
+            .
+          </span>
+        </div>
+      )}
+
       {/* Filtros */}
       <Card className="border-slate-200">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Colaborador</label>
-              <Select value={colaboradorId} onValueChange={setColaboradorId}>
-                <SelectTrigger className="bg-slate-50 border-slate-200">
-                  <SelectValue placeholder="Selecione um colaborador" />
-                </SelectTrigger>
-                <SelectContent>
-                  {colaboradores.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Data inicial</label>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <Filter className="h-4 w-4 text-blue-600" />
+            Filtros (combináveis)
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Combine empresa, colaborador, local, equipamento e período. Os filtros se aplicam
+            juntos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <LabelEmpresa />
+            <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
+              <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                <Building2 className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as empresas</SelectItem>
+                {EMPRESAS.map((e) => (
+                  <SelectItem key={e} value={e}>
+                    {e}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <LabelColaborador />
+            <Select value={filterColaborador} onValueChange={setFilterColaborador}>
+              <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                <User className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                <SelectValue placeholder="Colaborador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os colaboradores</SelectItem>
+                {colaboradores.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome} {c.empresa ? `(${c.empresa})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <LabelLocal />
+            <Select value={filterLocal} onValueChange={setFilterLocal}>
+              <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                <MapPin className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                <SelectValue placeholder="Local" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os locais</SelectItem>
+                {LOCAIS_TRABALHO.map((l) => (
+                  <SelectItem key={l} value={l}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <LabelEquipamento />
+            <Select value={filterEquipamento} onValueChange={setFilterEquipamento}>
+              <SelectTrigger className="bg-slate-50 border-slate-200 text-xs">
+                <Wrench className="h-3.5 w-3.5 text-slate-400 mr-1" />
+                <SelectValue placeholder="Equipamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os equipamentos</SelectItem>
+                {equipamentos.map((eq) => (
+                  <SelectItem key={eq.id} value={eq.id}>
+                    {eq.identificacao}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <LabelPeriodo />
+            <div className="grid grid-cols-2 gap-2">
               <Input
                 type="date"
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
-                className="bg-slate-50 border-slate-200"
+                className="bg-slate-50 border-slate-200 text-xs"
+                placeholder="Início"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Data final</label>
               <Input
                 type="date"
                 value={dataFim}
                 onChange={(e) => setDataFim(e.target.value)}
-                className="bg-slate-50 border-slate-200"
+                className="bg-slate-50 border-slate-200 text-xs"
+                placeholder="Fim"
               />
             </div>
+          </div>
+
+          <div className="flex items-end">
+            <Button
+              variant="outline"
+              onClick={limparFiltros}
+              className="w-full text-xs flex items-center gap-2"
+            >
+              <Search className="h-3.5 w-3.5" />
+              Limpar filtros
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {!colaboradorSelecionado ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-center">
-          <User className="h-12 w-12 text-slate-300 mb-3" />
-          <h3 className="text-base font-semibold text-slate-800">Escolha um colaborador</h3>
-          <p className="text-sm text-slate-500 max-w-sm mt-1">
-            O relatório mostra somente os registros do colaborador selecionado.
-          </p>
-        </div>
-      ) : isLoading ? (
+      {/* Resumo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <ResumoCard
+          titulo="Lançamentos"
+          valor={String(resumo.quantidade)}
+          icone={<FileText className="h-5 w-5" />}
+          cor="bg-blue-50 text-blue-600"
+        />
+        <ResumoCard
+          titulo="Horas brutas"
+          valor={`${resumo.horasBrutas.toFixed(2)} h`}
+          icone={<Clock className="h-5 w-5" />}
+          cor="bg-amber-50 text-amber-600"
+        />
+        <ResumoCard
+          titulo="Horas líquidas"
+          valor={`${resumo.horasLiquidas.toFixed(2)} h`}
+          icone={<Clock className="h-5 w-5" />}
+          cor="bg-indigo-50 text-indigo-600"
+        />
+        <ResumoCard
+          titulo="Valor total"
+          valor={formatCurrency(resumo.valorTotal)}
+          icone={<DollarSign className="h-5 w-5" />}
+          cor="bg-emerald-50 text-emerald-700"
+        />
+      </div>
+
+      {/* Tabela de lançamentos */}
+      {isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
-            <p className="text-sm">Carregando registros...</p>
+            <p className="text-sm">Carregando relatório...</p>
           </div>
         </div>
+      ) : filteredRegistros.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-center">
+          <FileBarChart className="h-12 w-12 text-slate-300 mb-3" />
+          <h3 className="text-base font-semibold text-slate-800">Nenhum lançamento encontrado</h3>
+          <p className="text-sm text-slate-500 max-w-sm mt-1 mb-4">
+            {hasFiltros
+              ? 'Nenhum lançamento corresponde aos filtros. Tente ampliar o período ou remover filtros.'
+              : 'Ainda não há horas extras lançadas.'}
+          </p>
+          {hasFiltros && (
+            <Button variant="outline" size="sm" onClick={limparFiltros}>
+              Limpar filtros
+            </Button>
+          )}
+        </div>
       ) : (
-        <>
-          {/* Identificação do colaborador */}
-          <Card className="border-slate-200 bg-white">
-            <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <p className="text-lg font-bold text-slate-900">{colaboradorSelecionado.nome}</p>
-                <p className="text-sm text-slate-500">{colaboradorSelecionado.funcao}</p>
-              </div>
-              <p className="text-xs text-slate-500">Período: {periodoTexto}</p>
-            </CardContent>
-          </Card>
-
-          {/* Totais */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border-slate-200 bg-white">
-              <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Registros
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {registrosPeriodo.length}
-                  </p>
-                </div>
-                <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <FileBarChart className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-slate-200 bg-white">
-              <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Total de Horas Líquidas
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {totalHorasLiquidas.toFixed(2)} h
-                  </p>
-                </div>
-                <div className="h-10 w-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <Clock className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-slate-200 bg-gradient-to-br from-emerald-500/10 via-white to-white">
-              <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider">
-                    Valor Total
-                  </p>
-                  <p className="text-2xl font-bold text-emerald-800 mt-1">
-                    {formatCurrency(valorTotal)}
-                  </p>
-                </div>
-                <div className="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tabela */}
-          {registrosPeriodo.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-center">
-              <FileBarChart className="h-12 w-12 text-slate-300 mb-3" />
-              <h3 className="text-base font-semibold text-slate-800">Nenhum registro no período</h3>
-              <p className="text-sm text-slate-500 max-w-sm mt-1">
-                Este colaborador não possui horas extras lançadas nesse intervalo de datas.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-700">
-                  <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    <tr>
-                      <th className="py-3.5 px-4">Data</th>
-                      <th className="py-3.5 px-4">Horário</th>
-                      <th className="py-3.5 px-4 text-center">Horas Líquidas</th>
-                      <th className="py-3.5 px-4 text-center">Adicional</th>
-                      <th className="py-3.5 px-4 text-right">Valor Hora</th>
-                      <th className="py-3.5 px-4 text-right">Valor Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {registrosPeriodo.map((reg) => (
-                      <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-800">
-                          {formatDateBR(reg.data)}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap text-xs text-slate-600">
-                          {reg.hora}
-                          {reg.hora_fim ? `–${reg.hora_fim}` : ''}
-                        </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap font-semibold">
-                          {reg.quantidade_horas} h
-                        </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-700">
+              <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                <tr>
+                  <th className="py-3 px-3">Data</th>
+                  <th className="py-3 px-3">Colaborador</th>
+                  <th className="py-3 px-3">Empresa</th>
+                  <th className="py-3 px-3">Local</th>
+                  <th className="py-3 px-3">Equipamento</th>
+                  <th className="py-3 px-3 text-center">Horário</th>
+                  <th className="py-3 px-3 text-center">Brutas</th>
+                  <th className="py-3 px-3 text-center">Líquidas</th>
+                  <th className="py-3 px-3 text-center">Adic.</th>
+                  <th className="py-3 px-3 text-right">Valor Hora</th>
+                  <th className="py-3 px-3 text-right">Valor Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRegistros.map((reg) => {
+                  const colab = reg.expand?.colaborador
+                  const horasBrutas = reg.quantidade_horas ? reg.quantidade_horas + 1 : 0
+                  return (
+                    <tr key={reg.id} className="hover:bg-slate-50/80">
+                      <td className="py-2.5 px-3 whitespace-nowrap">{formatDateBR(reg.data)}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-900">
+                        {colab?.nome || '—'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {colab?.empresa ? (
                           <Badge
-                            variant="secondary"
+                            variant="outline"
                             className={
-                              reg.percentual === '100%'
-                                ? 'bg-purple-100 text-purple-800 border-purple-200'
-                                : 'bg-blue-100 text-blue-800 border-blue-200'
+                              colab.empresa === 'RAFAEL'
+                                ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                : colab.empresa === 'RUANN'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                  : 'bg-purple-100 text-purple-800 border-purple-200'
                             }
                           >
-                            {reg.percentual}
+                            {colab.empresa}
                           </Badge>
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono text-xs text-slate-600">
-                          {formatCurrency(reg.valor_hora)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap font-bold text-emerald-700">
-                          {formatCurrency(reg.valor_total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-sm font-bold text-slate-900">
-                    <tr>
-                      <td className="py-3 px-4" colSpan={2}>
-                        Total
+                        ) : (
+                          <span className="text-slate-300 italic text-xs">—</span>
+                        )}
                       </td>
-                      <td className="py-3 px-4 text-center">{totalHorasLiquidas.toFixed(2)} h</td>
-                      <td className="py-3 px-4"></td>
-                      <td className="py-3 px-4"></td>
-                      <td className="py-3 px-4 text-right text-emerald-800">
-                        {formatCurrency(valorTotal)}
+                      <td className="py-2.5 px-3 text-xs text-slate-600">
+                        {reg.local_trabalho || <span className="text-slate-300 italic">—</span>}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-xs text-slate-600">
+                        {reg.equipamento ? (
+                          getEquipamentoIdent(reg.equipamento) || (
+                            <span className="text-slate-400 italic">removido</span>
+                          )
+                        ) : (
+                          <span className="text-slate-300 italic">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center text-xs whitespace-nowrap">
+                        {reg.hora}
+                        {reg.hora_fim ? `–${reg.hora_fim}` : ''}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {reg.hora_fim ? horasBrutas : '—'}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-semibold">
+                        {reg.quantidade_horas} h
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <Badge
+                          variant="secondary"
+                          className={
+                            reg.percentual === '100%'
+                              ? 'bg-purple-100 text-purple-800 border-purple-200'
+                              : 'bg-blue-100 text-blue-800 border-blue-200'
+                          }
+                        >
+                          {reg.percentual}
+                        </Badge>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-xs">
+                        {formatCurrency(reg.valor_hora)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-700">
+                        {formatCurrency(reg.valor_total)}
                       </td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-slate-200 bg-slate-50/60 p-3 px-4 text-xs text-slate-500">
+            Exibindo <strong>{filteredRegistros.length}</strong> lançamento(s) — filtros:{' '}
+            {getTituloFiltros()}
+          </div>
+        </div>
       )}
+
+      <p className="text-xs text-slate-400 text-center">
+        Registros antigos sem local/equipamento aparecem nos relatórios com os campos em branco.
+      </p>
+      <div className="flex justify-center">
+        <Link to="/registros" className="text-xs text-blue-600 hover:underline">
+          Ver histórico completo →
+        </Link>
+      </div>
     </div>
+  )
+}
+
+function LabelEmpresa() {
+  return <span className="text-[11px] font-semibold text-slate-600">Empresa</span>
+}
+function LabelColaborador() {
+  return <span className="text-[11px] font-semibold text-slate-600">Colaborador</span>
+}
+function LabelLocal() {
+  return <span className="text-[11px] font-semibold text-slate-600">Local de Trabalho</span>
+}
+function LabelEquipamento() {
+  return <span className="text-[11px] font-semibold text-slate-600">Equipamento</span>
+}
+function LabelPeriodo() {
+  return <span className="text-[11px] font-semibold text-slate-600">Período (início / fim)</span>
+}
+
+function ResumoCard({
+  titulo,
+  valor,
+  icone,
+  cor,
+}: {
+  titulo: string
+  valor: string
+  icone: React.ReactNode
+  cor: string
+}) {
+  return (
+    <Card className="border-slate-200 bg-white">
+      <CardContent className="p-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{titulo}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{valor}</p>
+        </div>
+        <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${cor}`}>
+          {icone}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
