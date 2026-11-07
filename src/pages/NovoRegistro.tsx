@@ -5,6 +5,8 @@ import {
   registrosService,
   calcularValorTotalHoraExtra,
   calcularQuantidadeHoras,
+  calcularQuantidadeHorasLiquidas,
+  DESCONTO_REFEICAO_HORAS,
 } from '@/services/registros'
 import type { Colaborador, PercentualHoraExtra } from '@/types'
 import { formatCurrency } from '@/lib/exportUtils'
@@ -53,8 +55,9 @@ export default function NovoRegistro() {
   const [data, setData] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [hora, setHora] = useState<string>('18:00')
   const [horaFim, setHoraFim] = useState<string>('20:00')
-  // Quantidade de horas calculada automaticamente a partir de início/término
-  const quantidadeHoras = calcularQuantidadeHoras(hora, horaFim)
+  // Quantidade de horas calculada a partir de início/término, com desconto de 1h de refeição
+  const horasBrutas = calcularQuantidadeHoras(hora, horaFim)
+  const quantidadeHoras = calcularQuantidadeHorasLiquidas(hora, horaFim)
   const [valorHora, setValorHora] = useState<string>('25.00')
   const [percentual, setPercentual] = useState<PercentualHoraExtra>('50%')
   const [observacao, setObservacao] = useState<string>('')
@@ -285,7 +288,8 @@ export default function NovoRegistro() {
                     required
                   />
                   <p className="text-[11px] text-slate-500">
-                    Virada de meia-noite aceita (ex.: 22:00 → 02:00 = 4h).
+                    Virada de meia-noite aceita (ex.: 22:00 → 02:00 = 4h brutas, 3h líquidas após
+                    desconto de refeição).
                   </p>
                 </div>
               </div>
@@ -309,7 +313,7 @@ export default function NovoRegistro() {
                     readOnly
                     tabIndex={-1}
                     className="bg-slate-100 text-slate-800 font-semibold cursor-default"
-                    title="Calculada automaticamente a partir do horário de início e término"
+                    title={`Calculada a partir do horário de início e término, descontando ${DESCONTO_REFEICAO_HORAS}h de refeição`}
                   />
                 </div>
 
@@ -408,7 +412,19 @@ export default function NovoRegistro() {
 
               <CardContent className="space-y-3.5 text-sm">
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-100 text-xs">
-                  <span className="text-slate-600">Horas apontadas:</span>
+                  <span className="text-slate-600">Horas do intervalo (brutas):</span>
+                  <span className="font-semibold text-slate-800">{horasBrutas} hora(s)</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-100 text-xs">
+                  <span className="text-slate-600">Desconto de refeição:</span>
+                  <span className="font-semibold text-red-600">
+                    −{DESCONTO_REFEICAO_HORAS} hora
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-100 text-xs">
+                  <span className="text-slate-600">Horas líquidas apontadas:</span>
                   <span className="font-semibold text-slate-800">{qHorasNum} hora(s)</span>
                 </div>
 
@@ -444,7 +460,8 @@ export default function NovoRegistro() {
                     {percentual === '100%' ? '200%' : '150%'}
                   </div>
                   <div className="text-[11px] text-blue-100 mt-1.5 pt-1.5 border-t border-blue-500/40">
-                    {hora} às {horaFim} (início → término)
+                    {hora} às {horaFim} — {horasBrutas}h brutas − 1h refeição = {qHorasNum}h
+                    líquidas
                   </div>
                 </div>
 

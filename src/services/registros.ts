@@ -23,7 +23,12 @@ export function calcularValorTotalHoraExtra(
 }
 
 /**
- * Calcula a quantidade de horas entre dois horários (HH:mm),
+ * Desconto fixo de intervalo de refeição, em horas, aplicado a todo apontamento.
+ */
+export const DESCONTO_REFEICAO_HORAS = 1
+
+/**
+ * Calcula a quantidade de horas brutas entre dois horários (HH:mm),
  * tratando viradas de meia-noite: 22:00 -> 02:00 = 4h.
  */
 export function calcularQuantidadeHoras(horaInicio: string, horaFim: string): number {
@@ -36,6 +41,15 @@ export function calcularQuantidadeHoras(horaInicio: string, horaFim: string): nu
   let minutos = minutosFim - minutosInicio
   if (minutos < 0) minutos += 24 * 60
   return Number((minutos / 60).toFixed(2))
+}
+
+/**
+ * Horas líquidas do apontamento: intervalo bruto menos o desconto de 1h de
+ * refeição, nunca negativo (mínimo 0h).
+ */
+export function calcularQuantidadeHorasLiquidas(horaInicio: string, horaFim: string): number {
+  const brutas = calcularQuantidadeHoras(horaInicio, horaFim)
+  return Math.max(0, Number((brutas - DESCONTO_REFEICAO_HORAS).toFixed(2)))
 }
 
 export const registrosService = {
