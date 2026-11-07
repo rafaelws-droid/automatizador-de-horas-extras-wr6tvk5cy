@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   Lock,
@@ -41,7 +41,9 @@ export default function Login() {
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sucesso, setSucesso] = useState<string | null>(null)
+  const [sucesso, setSucesso] = useState<string | null>(
+    (location.state as { mensagem?: string } | null)?.mensagem ?? null,
+  )
 
   // Redirect if already authenticated
   if (isAuthenticated) {
@@ -269,6 +271,15 @@ export default function Login() {
                   </>
                 )}
               </Button>
+
+              {modo === 'login' && (
+                <Link
+                  to="/esqueci-senha"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Esqueci minha senha
+                </Link>
+              )}
 
               <button
                 type="button"
