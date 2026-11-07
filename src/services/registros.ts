@@ -5,6 +5,7 @@ export interface CreateRegistroInput {
   colaborador: string
   data: string
   hora: string
+  hora_fim?: string
   quantidade_horas: number
   valor_hora: number
   percentual: PercentualHoraExtra
@@ -19,6 +20,22 @@ export function calcularValorTotalHoraExtra(
   const fator = percentual === '100%' ? 2.0 : 1.5
   const total = Number((quantidadeHoras * valorHora * fator).toFixed(2))
   return total
+}
+
+/**
+ * Calcula a quantidade de horas entre dois horários (HH:mm),
+ * tratando viradas de meia-noite: 22:00 -> 02:00 = 4h.
+ */
+export function calcularQuantidadeHoras(horaInicio: string, horaFim: string): number {
+  const [h1, m1] = horaInicio.split(':').map(Number)
+  const [h2, m2] = horaFim.split(':').map(Number)
+  if ([h1, m1, h2, m2].some((n) => Number.isNaN(n))) return 0
+
+  const minutosInicio = h1 * 60 + m1
+  const minutosFim = h2 * 60 + m2
+  let minutos = minutosFim - minutosInicio
+  if (minutos < 0) minutos += 24 * 60
+  return Number((minutos / 60).toFixed(2))
 }
 
 export const registrosService = {
@@ -51,6 +68,7 @@ export const registrosService = {
         colaborador: data.colaborador,
         data: data.data,
         hora: data.hora,
+        hora_fim: data.hora_fim || '',
         quantidade_horas: data.quantidade_horas,
         valor_hora: data.valor_hora,
         percentual: data.percentual,

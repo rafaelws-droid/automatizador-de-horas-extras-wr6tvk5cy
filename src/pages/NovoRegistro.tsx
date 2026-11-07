@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { colaboradoresService } from '@/services/colaboradores'
-import { registrosService, calcularValorTotalHoraExtra } from '@/services/registros'
+import {
+  registrosService,
+  calcularValorTotalHoraExtra,
+  calcularQuantidadeHoras,
+} from '@/services/registros'
 import type { Colaborador, PercentualHoraExtra } from '@/types'
 import { formatCurrency } from '@/lib/exportUtils'
 import {
@@ -48,7 +52,9 @@ export default function NovoRegistro() {
   )
   const [data, setData] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [hora, setHora] = useState<string>('18:00')
-  const [quantidadeHoras, setQuantidadeHoras] = useState<string>('2')
+  const [horaFim, setHoraFim] = useState<string>('20:00')
+  // Quantidade de horas calculada automaticamente a partir de início/término
+  const quantidadeHoras = calcularQuantidadeHoras(hora, horaFim)
   const [valorHora, setValorHora] = useState<string>('25.00')
   const [percentual, setPercentual] = useState<PercentualHoraExtra>('50%')
   const [observacao, setObservacao] = useState<string>('')
@@ -74,7 +80,7 @@ export default function NovoRegistro() {
   }, [])
 
   // Calculate live preview
-  const qHorasNum = Math.max(0, parseFloat(quantidadeHoras.replace(',', '.')) || 0)
+  const qHorasNum = Math.max(0, quantidadeHoras)
   const vHoraNum = Math.max(0, parseFloat(valorHora.replace(',', '.')) || 0)
   const valorTotalCalculado = calcularValorTotalHoraExtra(qHorasNum, vHoraNum, percentual)
 
@@ -97,8 +103,16 @@ export default function NovoRegistro() {
       setError('Informe o horário de início da hora extra.')
       return
     }
+    if (!horaFim) {
+      setError('Informe o horário de término da hora extra.')
+      return
+    }
+    if (horaFim === hora) {
+      setError('O horário de término deve ser diferente do horário de início.')
+      return
+    }
     if (qHorasNum <= 0) {
-      setError('A quantidade de horas deve ser maior que zero.')
+      setError('A quantidade de horas calculada deve ser maior que zero.')
       return
     }
     if (vHoraNum <= 0) {
@@ -112,6 +126,7 @@ export default function NovoRegistro() {
         colaborador: colaboradorId,
         data,
         hora,
+        hora_fim: horaFim,
         quantidade_horas: qHorasNum,
         valor_hora: vHoraNum,
         percentual,
@@ -253,6 +268,26 @@ export default function NovoRegistro() {
                     required
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="hora_fim"
+                    className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-blue-600" />
+                    Horário de Término
+                  </Label>
+                  <Input
+                    id="hora_fim"
+                    type="time"
+                    value={horaFim}
+                    onChange={(e) => setHoraFim(e.target.value)}
+                    required
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Virada de meia-noite aceita (ex.: 22:00 → 02:00 = 4h).
+                  </p>
+                </div>
               </div>
 
               {/* Quantidade de Horas e Valor da Hora */}
@@ -262,18 +297,19 @@ export default function NovoRegistro() {
                     htmlFor="quantidade_horas"
                     className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
                   >
-                    <Clock className="h-3.5 w-3.5 text-blue-600" />
-                    Quantidade de Horas (ex: 2.5)
+                    <Calculator className="h-3.5 w-3.5 text-blue-600" />
+                    Quantidade de Horas (calculada automaticamente)
                   </Label>
                   <Input
                     id="quantidade_horas"
                     type="number"
-                    step="0.25"
-                    min="0.1"
-                    placeholder="2"
-                    value={quantidadeHoras}
-                    onChange={(e) => setQuantidadeHoras(e.target.value)}
-                    required
+                    step="0.01"
+                    min="0"
+                    value={quantidadeHoras.toFixed(2).replace(/\.00$/, '')}
+                    readOnly
+                    tabIndex={-1}
+                    className="bg-slate-100 text-slate-800 font-semibold cursor-default"
+                    title="Calculada automaticamente a partir do horário de início e término"
                   />
                 </div>
 
@@ -406,6 +442,9 @@ export default function NovoRegistro() {
                   <div className="text-[11px] text-blue-200 mt-1">
                     {qHorasNum}h × {formatCurrency(vHoraNum)} ×{' '}
                     {percentual === '100%' ? '200%' : '150%'}
+                  </div>
+                  <div className="text-[11px] text-blue-100 mt-1.5 pt-1.5 border-t border-blue-500/40">
+                    {hora} às {horaFim} (início → término)
                   </div>
                 </div>
 

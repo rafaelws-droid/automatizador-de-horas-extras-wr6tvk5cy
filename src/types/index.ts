@@ -13,6 +13,7 @@ export interface RegistroHoraExtra {
   colaborador: string
   data: string // YYYY-MM-DD
   hora: string // HH:mm
+  hora_fim?: string // HH:mm
   quantidade_horas: number
   valor_hora: number
   percentual: PercentualHoraExtra

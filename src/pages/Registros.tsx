@@ -352,6 +352,7 @@ export default function Registros() {
                         <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                           <Clock className="h-3 w-3" />
                           {reg.hora}
+                          {reg.hora_fim ? `–${reg.hora_fim}` : ''}
                         </div>
                       </td>
 

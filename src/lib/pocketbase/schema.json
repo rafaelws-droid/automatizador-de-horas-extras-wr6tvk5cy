@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T02:39:53.387Z",
+  "generatedAt": "2026-11-07T03:01:21.373Z",
   "collections": [
     {
       "name": "users",
@@ -158,6 +158,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "hora_fim",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

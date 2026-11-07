@@ -258,6 +258,7 @@ export default function Index() {
                         <div className="text-xs text-slate-500 flex items-center gap-2">
                           <span>
                             {formatDateBR(reg.data)} às {reg.hora}
+                            {reg.hora_fim ? `–${reg.hora_fim}` : ''}
                           </span>
                           <span>•</span>
                           <span>{reg.quantidade_horas} hora(s)</span>
