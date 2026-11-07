@@ -89,16 +89,21 @@ export default function NovoRegistro() {
 
   // Selected Colaborador details
   const selectedColaborador = colaboradores.find((c) => c.id === colaboradorId)
+  const valorHoraPredefinido = selectedColaborador?.valor_hora ?? 0
 
-  // Quando o colaborador selecionado muda, preenche o valor da hora com o valor
-  // pré-definido do cadastro (o campo continua editável pelo usuário).
+  // Preenche o campo "Valor Normal da Hora" com o valor pré-definido do cadastro
+  // assim que um colaborador é selecionado — inclusive na primeira seleção e quando
+  // o colaborador vem pela URL (dispara também quando a lista termina de carregar).
+  // Enquanto o MESMO colaborador segue selecionado, o campo permanece editável e
+  // não é sobrescrito de volta. Se o colaborador não tem valor cadastrado (0),
+  // o campo fica vazio e digitável para preenchimento manual.
   useEffect(() => {
-    const predefined = selectedColaborador?.valor_hora
-    if (predefined && predefined > 0) {
-      setValorHora(predefined.toFixed(2))
+    if (valorHoraPredefinido > 0) {
+      setValorHora(valorHoraPredefinido.toFixed(2))
+    } else {
+      setValorHora('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colaboradorId])
+  }, [colaboradorId, valorHoraPredefinido])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -340,11 +345,23 @@ export default function NovoRegistro() {
                     type="number"
                     step="0.01"
                     min="0.01"
-                    placeholder="25.00"
+                    placeholder="Ex.: 25.00"
                     value={valorHora}
                     onChange={(e) => setValorHora(e.target.value)}
                     required
                   />
+                  {valorHoraPredefinido > 0 ? (
+                    <p className="text-[11px] text-emerald-600">
+                      Preenchido automaticamente com o valor do cadastro — pode ser ajustado neste
+                      lançamento.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      Colaborador sem valor de hora cadastrado — informe o valor manualmente ou
+                      atualize o cadastro.
+                    </p>
+                  )}
                 </div>
               </div>
 
