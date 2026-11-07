@@ -2,6 +2,7 @@ export interface Colaborador {
   id: string
   nome: string
   funcao: string
+  valor_hora?: number
   created?: string
   updated?: string
 }

@@ -90,6 +90,16 @@ export default function NovoRegistro() {
   // Selected Colaborador details
   const selectedColaborador = colaboradores.find((c) => c.id === colaboradorId)
 
+  // Quando o colaborador selecionado muda, preenche o valor da hora com o valor
+  // pré-definido do cadastro (o campo continua editável pelo usuário).
+  useEffect(() => {
+    const predefined = selectedColaborador?.valor_hora
+    if (predefined && predefined > 0) {
+      setValorHora(predefined.toFixed(2))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colaboradorId])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)

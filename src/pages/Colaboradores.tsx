@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { colaboradoresService } from '@/services/colaboradores'
 import type { Colaborador } from '@/types'
+import { formatCurrency } from '@/lib/exportUtils'
 import {
   Users,
   UserPlus,
@@ -12,6 +13,7 @@ import {
   AlertCircle,
   Briefcase,
   CheckCircle2,
+  DollarSign,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,6 +52,7 @@ export default function Colaboradores() {
   const [editingColaborador, setEditingColaborador] = useState<Colaborador | null>(null)
   const [nome, setNome] = useState('')
   const [funcao, setFuncao] = useState('')
+  const [valorHora, setValorHora] = useState<string>('')
   const [formError, setFormError] = useState<string | null>(null)
 
   // Delete Dialog State
@@ -81,6 +84,7 @@ export default function Colaboradores() {
     setEditingColaborador(null)
     setNome('')
     setFuncao('')
+    setValorHora('')
     setFormError(null)
     setIsModalOpen(true)
   }
@@ -89,6 +93,7 @@ export default function Colaboradores() {
     setEditingColaborador(c)
     setNome(c.nome)
     setFuncao(c.funcao)
+    setValorHora(c.valor_hora && c.valor_hora > 0 ? c.valor_hora.toFixed(2) : '')
     setFormError(null)
     setIsModalOpen(true)
   }
@@ -100,18 +105,28 @@ export default function Colaboradores() {
       return
     }
 
+    const valorHoraNum = parseFloat(valorHora.replace(',', '.')) || 0
+    if (valorHoraNum < 0) {
+      setFormError('O valor da hora não pode ser negativo.')
+      return
+    }
+
     try {
       setIsSaving(true)
       setFormError(null)
 
       if (editingColaborador) {
-        await colaboradoresService.update(editingColaborador.id, { nome, funcao })
+        await colaboradoresService.update(editingColaborador.id, {
+          nome,
+          funcao,
+          valor_hora: valorHoraNum,
+        })
         toast({
           title: 'Colaborador atualizado',
           description: `Os dados de ${nome} foram atualizados com sucesso.`,
         })
       } else {
-        await colaboradoresService.create({ nome, funcao })
+        await colaboradoresService.create({ nome, funcao, valor_hora: valorHoraNum })
         toast({
           title: 'Colaborador cadastrado',
           description: `${nome} foi adicionado à equipe com sucesso.`,
@@ -260,6 +275,12 @@ export default function Colaboradores() {
                           <Briefcase className="h-3 w-3 text-slate-400" />
                           {colab.funcao}
                         </p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <DollarSign className="h-3 w-3 text-emerald-600" />
+                          {colab.valor_hora && colab.valor_hora > 0
+                            ? formatCurrency(colab.valor_hora)
+                            : 'Valor da hora não definido'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -347,6 +368,29 @@ export default function Colaboradores() {
                 onChange={(e) => setFuncao(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="valor_hora_colaborador"
+                className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+              >
+                <DollarSign className="h-3.5 w-3.5 text-blue-600" />
+                Valor da Hora (R$) — pré-definido
+              </Label>
+              <Input
+                id="valor_hora_colaborador"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ex.: 25.00"
+                value={valorHora}
+                onChange={(e) => setValorHora(e.target.value)}
+              />
+              <p className="text-[11px] text-slate-500">
+                Usado automaticamente ao lançar uma hora extra deste colaborador (pode ser
+                sobrescrito no lançamento).
+              </p>
             </div>
 
             <DialogFooter className="pt-2">

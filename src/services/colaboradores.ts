@@ -14,18 +14,23 @@ export const colaboradoresService = {
     return record
   },
 
-  async create(data: { nome: string; funcao: string }): Promise<Colaborador> {
+  async create(data: { nome: string; funcao: string; valor_hora?: number }): Promise<Colaborador> {
     const record = await pb.collection('colaboradores').create<Colaborador>({
       nome: data.nome.trim(),
       funcao: data.funcao.trim(),
+      valor_hora: data.valor_hora ?? 0,
     })
     return record
   },
 
-  async update(id: string, data: { nome: string; funcao: string }): Promise<Colaborador> {
+  async update(
+    id: string,
+    data: { nome: string; funcao: string; valor_hora?: number },
+  ): Promise<Colaborador> {
     const record = await pb.collection('colaboradores').update<Colaborador>(id, {
       nome: data.nome.trim(),
       funcao: data.funcao.trim(),
+      valor_hora: data.valor_hora ?? 0,
     })
     return record
   },

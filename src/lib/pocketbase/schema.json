@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T03:08:29.084Z",
+  "generatedAt": "2026-11-07T03:14:20.387Z",
   "collections": [
     {
       "name": "users",
@@ -80,6 +80,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "valor_hora",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_colaboradores_nome ON colaboradores (nome)"]
