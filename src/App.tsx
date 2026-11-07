@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Colaboradores from './pages/Colaboradores'
 import NovoRegistro from './pages/NovoRegistro'
 import Registros from './pages/Registros'
+import Relatorio from './pages/Relatorio'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider } from './contexts/AuthContext'
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/colaboradores" element={<Colaboradores />} />
             <Route path="/novo-registro" element={<NovoRegistro />} />
             <Route path="/registros" element={<Registros />} />
+            <Route path="/relatorio" element={<Relatorio />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

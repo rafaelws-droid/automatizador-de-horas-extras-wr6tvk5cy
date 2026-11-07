@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2,
   Users,
+  FileBarChart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -172,6 +173,13 @@ export default function Registros() {
           >
             <FileSpreadsheet className="h-4 w-4" />
             Exportar para Planilha
+          </Button>
+
+          <Button asChild variant="outline" className="shadow-sm">
+            <Link to="/relatorio" className="flex items-center gap-2">
+              <FileBarChart className="h-4 w-4" />
+              Relatório Individual
+            </Link>
           </Button>
 
           <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">

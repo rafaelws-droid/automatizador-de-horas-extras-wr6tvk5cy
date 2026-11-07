@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Clock, Lock, Mail, ArrowRight, Loader2, AlertCircle, ShieldCheck } from 'lucide-react'
+import { Lock, Mail, ArrowRight, Loader2, AlertCircle, ShieldCheck } from 'lucide-react'
+import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -64,9 +65,11 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* App Logo & Header */}
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-xl shadow-blue-500/25">
-            <Clock className="h-8 w-8" />
-          </div>
+          <img
+            src={logoSilveira}
+            alt="Logo Silveira"
+            className="mx-auto mb-3 h-24 w-24 rounded-2xl bg-white object-contain p-1 shadow-xl shadow-blue-500/25"
+          />
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Automatizador de Horas Extras
           </h1>

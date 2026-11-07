@@ -1,15 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import {
-  Clock,
-  Users,
-  PlusCircle,
-  History,
-  LayoutDashboard,
-  LogOut,
-  User as UserIcon,
-} from 'lucide-react'
+import { Users, PlusCircle, History, LayoutDashboard, LogOut, FileBarChart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
 
 export function Navbar() {
   const { user, logout } = useAuth()
@@ -20,6 +13,7 @@ export function Navbar() {
     { label: 'Colaboradores', path: '/colaboradores', icon: Users },
     { label: 'Novo Registro', path: '/novo-registro', icon: PlusCircle },
     { label: 'Registros', path: '/registros', icon: History },
+    { label: 'Relatório', path: '/relatorio', icon: FileBarChart },
   ]
 
   return (
@@ -27,12 +21,14 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md shadow-blue-500/20">
-            <Clock className="h-5 w-5" />
-          </div>
+          <img
+            src={logoSilveira}
+            alt="Logo Silveira"
+            className="h-10 w-10 rounded-lg bg-white object-contain"
+          />
           <div className="flex flex-col">
             <span className="text-base font-bold tracking-tight text-slate-900 leading-tight">
-              Horas Extras RH
+              Silveira · Horas Extras
             </span>
             <span className="text-xs text-slate-500 font-medium">Controle & Automação</span>
           </div>
@@ -84,7 +80,7 @@ export function Navbar() {
 
       {/* Mobile Nav strip */}
       <div className="md:hidden border-t border-slate-100 bg-slate-50/80 px-2 py-1.5">
-        <div className="grid grid-cols-4 gap-1 text-center">
+        <div className="grid grid-cols-5 gap-1 text-center">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path

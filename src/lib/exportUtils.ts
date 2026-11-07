@@ -28,6 +28,87 @@ export function formatDateBR(dateStr: string | undefined | null): string {
   }
 }
 
+export interface RelatorioIndividualInfo {
+  nomeColaborador: string
+  funcao: string
+  periodo: string
+}
+
+/**
+ * Exporta o relatório individual de um colaborador (cabeçalho com a marca Silveira,
+ * registros em horas líquidas e linha de totais) para CSV compatível com Google Sheets / Excel
+ */
+export function exportRelatorioIndividualToCsv(
+  registros: RegistroHoraExtra[],
+  info: RelatorioIndividualInfo,
+): void {
+  const escapeCsv = (str: string | number) => `"${String(str ?? '').replace(/"/g, '""')}"`
+  const num = (n: number) => (n || 0).toFixed(2).replace('.', ',')
+
+  const totalHoras = registros.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0)
+  const totalValor = registros.reduce((acc, r) => acc + (r.valor_total || 0), 0)
+
+  const cabecalho: string[][] = [
+    ['SILVEIRA - Relatório Individual de Horas Extras'],
+    ['Colaborador', info.nomeColaborador],
+    ['Função', info.funcao || '-'],
+    ['Período', info.periodo],
+    [],
+  ]
+
+  const headers = [
+    'Data',
+    'Horário de Início',
+    'Horário de Término',
+    'Horas Líquidas',
+    'Percentual',
+    'Valor da Hora (R$)',
+    'Valor Total (R$)',
+    'Observações',
+  ]
+
+  const rows = registros.map((r) =>
+    [
+      formatDateBR(r.data),
+      r.hora,
+      r.hora_fim || '',
+      num(r.quantidade_horas),
+      r.percentual,
+      num(r.valor_hora),
+      num(r.valor_total),
+      r.observacao || '',
+    ].map(escapeCsv),
+  )
+
+  const totais = ['Total', '', '', num(totalHoras), '', '', num(totalValor), ''].map(escapeCsv)
+
+  const linhas = [
+    ...cabecalho.map((linha) => linha.map(escapeCsv).join(';')),
+    headers.map(escapeCsv).join(';'),
+    ...rows.map((linha) => linha.join(';')),
+    totais.join(';'),
+  ]
+
+  // BOM para garantir que Excel e Google Sheets abram corretamente com acentos UTF-8
+  const csvContent = '\uFEFF' + linhas.join('\r\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const todayStr = new Date().toISOString().split('T')[0]
+  const nomeArquivo = info.nomeColaborador
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase()
+  link.setAttribute('href', url)
+  link.setAttribute('download', `relatorio_${nomeArquivo || 'colaborador'}_${todayStr}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 /**
  * Exporta registros de horas extras para arquivo CSV compatível com Google Sheets / Excel
  */
