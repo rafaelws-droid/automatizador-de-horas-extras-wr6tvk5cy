@@ -12,6 +12,17 @@ import {
 import { Button } from '@/components/ui/button'
 import logoSilveira from '@/assets/logo-silveira-sem-fundo-azul-1-1abbf.png'
 
+function iniciaisUsuario(name: string, email: string): string {
+  const fonte = name && name !== email ? name : email
+  const partes = fonte
+    .replace(/@.*/, '')
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+  if (partes.length === 0) return '?'
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
+  return (partes[0][0] + partes[1][0]).toUpperCase()
+}
+
 export function Navbar() {
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -66,12 +77,33 @@ export function Navbar() {
         </nav>
 
         {/* User Info & Logout */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {user && (
-            <div className="hidden lg:flex flex-col items-end text-xs">
-              <span className="font-semibold text-slate-800">{user.name || 'Gestor de RH'}</span>
-              <span className="text-slate-500 truncate max-w-[180px]">{user.email}</span>
-            </div>
+            <>
+              {/* Avatar com iniciais — visível em todas as larguras */}
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white select-none"
+                title={`${user.name} (${user.email})`}
+              >
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="h-9 w-9 rounded-full object-cover"
+                  />
+                ) : (
+                  iniciaisUsuario(user.name, user.email)
+                )}
+              </div>
+
+              {/* Nome + e-mail — ocultos em telas apertadas */}
+              <div className="hidden sm:flex flex-col items-start text-xs min-w-0">
+                <span className="font-semibold text-slate-800 leading-tight max-w-[160px] truncate">
+                  {user.name || user.email}
+                </span>
+                <span className="text-slate-500 truncate max-w-[160px]">{user.email}</span>
+              </div>
+            </>
           )}
 
           <Button
