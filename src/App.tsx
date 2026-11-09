@@ -16,9 +16,12 @@ import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { ScrollToTop } from './components/ScrollToTop'
 
 const App = () => (
   <BrowserRouter>
+    <ScrollToTop />
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
@@ -34,12 +37,54 @@ const App = () => (
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Index />} />
-            <Route path="/colaboradores" element={<Colaboradores />} />
-            <Route path="/novo-registro" element={<NovoRegistro />} />
-            <Route path="/registros" element={<Registros />} />
-            <Route path="/relatorio" element={<Relatorio />} />
-            <Route path="/equipamentos" element={<Equipamentos />} />
+            <Route
+              path="/"
+              element={
+                <ErrorBoundary key="index">
+                  <Index />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/colaboradores"
+              element={
+                <ErrorBoundary key="colaboradores">
+                  <Colaboradores />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/novo-registro"
+              element={
+                <ErrorBoundary key="novo-registro">
+                  <NovoRegistro />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/registros"
+              element={
+                <ErrorBoundary key="registros">
+                  <Registros />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/relatorio"
+              element={
+                <ErrorBoundary key="relatorio">
+                  <Relatorio />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/equipamentos"
+              element={
+                <ErrorBoundary key="equipamentos">
+                  <Equipamentos />
+                </ErrorBoundary>
+              }
+            />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

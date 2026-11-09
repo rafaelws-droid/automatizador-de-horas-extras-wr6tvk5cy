@@ -19,7 +19,9 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    // sessaoExpirada: orienta o usuário leigo sobre por que a tela "não carregava"
+    // (token de sessão vencido em vez de um bug do app).
+    return <Navigate to="/login" state={{ from: location, sessaoExpirada: true }} replace />
   }
 
   return <>{children}</>

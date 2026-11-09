@@ -17,6 +17,7 @@ import {
 import { exportRegistrosToXlsx } from '@/lib/exportXlsx'
 import { exportRegistrosToPdf } from '@/lib/exportPdf'
 import { AssinaturasRelatorio } from '@/components/AssinaturasRelatorio'
+import { LoadError } from '@/components/LoadError'
 import {
   FileBarChart,
   FileSpreadsheet,
@@ -56,6 +57,7 @@ export default function Relatorio() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   const [filterColaborador, setFilterColaborador] = useState<string>(colaboradorIdParam || 'todos')
   const [filterEmpresa, setFilterEmpresa] = useState<string>('todas')
@@ -67,6 +69,7 @@ export default function Relatorio() {
   const loadData = async () => {
     try {
       setIsLoading(true)
+      setLoadError(false)
       const [regs, cols, eqs] = await Promise.all([
         registrosService.getAll(),
         colaboradoresService.getAll(),
@@ -77,6 +80,7 @@ export default function Relatorio() {
       setEquipamentos(eqs)
     } catch (err) {
       console.error(err)
+      setLoadError(true)
       toast({
         title: 'Erro ao carregar dados',
         description: 'Não foi possível buscar os lançamentos.',
@@ -432,7 +436,13 @@ export default function Relatorio() {
       </div>
 
       {/* Tabela de lançamentos */}
-      {isLoading ? (
+      {loadError ? (
+        <LoadError
+          onRetry={loadData}
+          title="Erro ao carregar o relatório"
+          message="Não foi possível buscar os lançamentos. Verifique sua conexão e tente novamente."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
@@ -555,7 +565,7 @@ export default function Relatorio() {
       )}
 
       {/* Assinaturas: colaborador + RH Silveira Transportes */}
-      {!isLoading && filteredRegistros.length > 0 && (
+      {!isLoading && !loadError && filteredRegistros.length > 0 && (
         <AssinaturasRelatorio nomeColaborador={getNomeColaboradorFiltro()} />
       )}
 

@@ -42,7 +42,10 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(
-    (location.state as { mensagem?: string } | null)?.mensagem ?? null,
+    (location.state as { mensagem?: string } | null)?.mensagem ??
+      ((location.state as { sessaoExpirada?: boolean } | null)?.sessaoExpirada
+        ? 'Sua sessão expirou por segurança. Faça login novamente para continuar.'
+        : null),
   )
 
   // Redirect if already authenticated

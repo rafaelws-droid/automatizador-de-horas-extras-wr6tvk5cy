@@ -28,6 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency } from '@/lib/exportUtils'
+import { LoadError } from '@/components/LoadError'
 
 const badgeClasses: Record<Empresa, string> = {
   RAFAEL: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -39,6 +40,7 @@ export default function Colaboradores() {
   const { toast } = useToast()
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS')
 
@@ -58,10 +60,13 @@ export default function Colaboradores() {
 
   const loadColaboradores = async () => {
     try {
+      setIsLoading(true)
+      setLoadError(false)
       const data = await colaboradoresService.getAll()
       setColaboradores(data)
     } catch (err) {
       console.error(err)
+      setLoadError(true)
       toast({
         title: 'Erro ao carregar colaboradores',
         description: 'Não foi possível buscar a lista de colaboradores.',
@@ -219,7 +224,13 @@ export default function Colaboradores() {
       </div>
 
       {/* Lista */}
-      {isLoading ? (
+      {loadError ? (
+        <LoadError
+          onRetry={loadColaboradores}
+          title="Erro ao carregar colaboradores"
+          message="Não foi possível buscar a lista de colaboradores. Verifique sua conexão e tente novamente."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />

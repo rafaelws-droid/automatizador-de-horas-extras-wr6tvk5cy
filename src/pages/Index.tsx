@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { LoadError } from '@/components/LoadError'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Index() {
@@ -28,10 +29,12 @@ export default function Index() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [allRegistros, setAllRegistros] = useState<RegistroHoraExtra[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   const loadDashboardData = async () => {
+    setIsLoading(true)
+    setLoadError(false)
     try {
-      setIsLoading(true)
       const [colabs, regs, recent] = await Promise.all([
         colaboradoresService.getAll(),
         registrosService.getAll(),
@@ -42,6 +45,7 @@ export default function Index() {
       setRecentRegistros(recent)
     } catch (err) {
       console.error(err)
+      setLoadError(true)
       toast({
         title: 'Erro ao carregar painel',
         description: 'Não foi possível carregar os dados recentes.',
@@ -223,7 +227,13 @@ export default function Index() {
             </CardHeader>
 
             <CardContent>
-              {isLoading ? (
+              {loadError ? (
+                <LoadError
+                  onRetry={loadDashboardData}
+                  title="Erro ao carregar o painel"
+                  message="Não foi possível buscar os lançamentos e colaboradores. Verifique sua conexão e tente novamente."
+                />
+              ) : isLoading ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                 </div>

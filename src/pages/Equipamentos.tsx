@@ -22,12 +22,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { formatDateBR } from '@/lib/exportUtils'
+import { LoadError } from '@/components/LoadError'
 
 export default function Equipamentos() {
   const { toast } = useToast()
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [registros, setRegistros] = useState<RegistroHoraExtra[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [equipamentoHistorico, setEquipamentoHistorico] = useState<Equipamento | null>(null)
 
@@ -42,6 +44,8 @@ export default function Equipamentos() {
 
   const loadData = async () => {
     try {
+      setIsLoading(true)
+      setLoadError(false)
       const [eqs, regs] = await Promise.all([
         equipamentosService.getAll(),
         registrosService.getAll(),
@@ -50,6 +54,7 @@ export default function Equipamentos() {
       setRegistros(regs)
     } catch (err) {
       console.error(err)
+      setLoadError(true)
       toast({
         title: 'Erro ao carregar equipamentos',
         description: 'Não foi possível buscar os dados.',
@@ -212,7 +217,13 @@ export default function Equipamentos() {
       </div>
 
       {/* Lista */}
-      {isLoading ? (
+      {loadError ? (
+        <LoadError
+          onRetry={loadData}
+          title="Erro ao carregar equipamentos"
+          message="Não foi possível buscar os equipamentos. Verifique sua conexão e tente novamente."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />

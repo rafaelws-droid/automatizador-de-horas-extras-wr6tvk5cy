@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { LoadError } from '@/components/LoadError'
 import { useToast } from '@/hooks/use-toast'
 
 /**
@@ -102,28 +103,28 @@ export default function NovoRegistro() {
   const [percentual, setPercentual] = useState<PercentualHoraExtra>('50%')
   const [observacao, setObservacao] = useState<string>('')
 
-  // Load Colaboradores e Equipamentos
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoadingColabs(true)
-        const [list, eqs] = await Promise.all([
-          colaboradoresService.getAll(),
-          equipamentosService.getAll(),
-        ])
-        setColaboradores(list)
-        setEquipamentos(eqs)
-        if (!colaboradorId && list.length > 0) {
-          setColaboradorId(list[0].id)
-        }
-      } catch (err) {
-        console.error(err)
-        setError('Não foi possível carregar os colaboradores.')
-      } finally {
-        setIsLoadingColabs(false)
-      }
+  // Load Colaboradores e Equipamentos (também usado pelo "Tentar novamente")
+  const carregarDados = async () => {
+    try {
+      setIsLoadingColabs(true)
+      setError(null)
+      const [list, eqs] = await Promise.all([
+        colaboradoresService.getAll(),
+        equipamentosService.getAll(),
+      ])
+      setColaboradores(list)
+      setEquipamentos(eqs)
+      setColaboradorId((atual) => atual || (list.length > 0 ? list[0].id : ''))
+    } catch (err) {
+      console.error(err)
+      setError('Não foi possível carregar os colaboradores.')
+    } finally {
+      setIsLoadingColabs(false)
     }
-    fetchData()
+  }
+
+  useEffect(() => {
+    void carregarDados()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -239,6 +240,8 @@ export default function NovoRegistro() {
           <Loader2 className="h-7 w-7 animate-spin text-blue-600 mx-auto mb-2" />
           <p className="text-sm text-slate-500">Carregando formulário de lançamento...</p>
         </div>
+      ) : error ? (
+        <LoadError onRetry={carregarDados} title="Erro ao carregar o formulário" message={error} />
       ) : colaboradores.length === 0 ? (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="p-6 text-center">

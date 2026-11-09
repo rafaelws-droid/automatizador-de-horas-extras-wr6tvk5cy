@@ -49,6 +49,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { LoadError } from '@/components/LoadError'
 
 export default function Registros() {
   const { toast } = useToast()
@@ -56,6 +57,7 @@ export default function Registros() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -72,6 +74,7 @@ export default function Registros() {
   const loadData = async () => {
     try {
       setIsLoading(true)
+      setLoadError(false)
       const [regsData, colabsData, eqsData] = await Promise.all([
         registrosService.getAll(),
         colaboradoresService.getAll(),
@@ -82,6 +85,7 @@ export default function Registros() {
       setEquipamentos(eqsData)
     } catch (err) {
       console.error(err)
+      setLoadError(true)
       toast({
         title: 'Erro ao carregar dados',
         description: 'Não foi possível buscar o histórico de registros.',
@@ -404,7 +408,13 @@ export default function Registros() {
       </Card>
 
       {/* Table / List View */}
-      {isLoading ? (
+      {loadError ? (
+        <LoadError
+          onRetry={loadData}
+          title="Erro ao carregar o histórico"
+          message="Não foi possível buscar os registros de horas extras. Verifique sua conexão e tente novamente."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
