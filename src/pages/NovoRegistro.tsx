@@ -26,20 +26,54 @@ import {
   AlertCircle,
   Loader2,
   Users,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
+
+/**
+ * Select nativo no lugar do componente Radix (@radix-ui/react-select).
+ * Motivo: bug conhecido do Radix Select com React 19 (refs compostas de
+ * identidade instável → loop síncrono de re-render durante o commit) que
+ * congela a aba do navegador no desktop ao abrir/selecionar uma opção.
+ * O <select> nativo tem o mesmo comportamento em PC e celular e é imune ao bug.
+ */
+interface SelectNativoProps {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  options: { value: string; label: string }[]
+  disabled?: boolean
+}
+
+function SelectNativo({ id, value, onChange, placeholder, options, disabled }: SelectNativoProps) {
+  return (
+    <div className="relative">
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-blue-600/40 focus:border-blue-600 disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-9"
+      >
+        <option value="" disabled>
+          {placeholder}
+        </option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+    </div>
+  )
+}
 
 export default function NovoRegistro() {
   const navigate = useNavigate()
@@ -252,18 +286,16 @@ export default function NovoRegistro() {
                   <User className="h-3.5 w-3.5 text-blue-600" />
                   Colaborador
                 </Label>
-                <Select value={colaboradorId} onValueChange={setColaboradorId}>
-                  <SelectTrigger id="colaborador" className="bg-white">
-                    <SelectValue placeholder="Selecione o colaborador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colaboradores.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome} — <span className="text-slate-500 text-xs">({c.funcao})</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectNativo
+                  id="colaborador"
+                  value={colaboradorId}
+                  onChange={setColaboradorId}
+                  placeholder="Selecione o colaborador"
+                  options={colaboradores.map((c) => ({
+                    value: c.id,
+                    label: `${c.nome} — ${c.funcao}`,
+                  }))}
+                />
                 {selectedColaborador && (
                   <p className="text-xs text-slate-500">
                     Função cadastrada:{' '}
@@ -286,18 +318,13 @@ export default function NovoRegistro() {
                   <MapPin className="h-3.5 w-3.5 text-blue-600" />
                   Local de Trabalho <span className="text-red-500">*</span>
                 </Label>
-                <Select value={localTrabalho} onValueChange={setLocalTrabalho}>
-                  <SelectTrigger id="local_trabalho" className="bg-white">
-                    <SelectValue placeholder="Selecione onde o colaborador trabalhou" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LOCAIS_TRABALHO.map((local) => (
-                      <SelectItem key={local} value={local}>
-                        {local}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectNativo
+                  id="local_trabalho"
+                  value={localTrabalho}
+                  onChange={setLocalTrabalho}
+                  placeholder="Selecione onde o colaborador trabalhou"
+                  options={LOCAIS_TRABALHO.map((local) => ({ value: local, label: local }))}
+                />
               </div>
 
               {/* Equipamento / Veículo */}
@@ -309,21 +336,18 @@ export default function NovoRegistro() {
                   <Wrench className="h-3.5 w-3.5 text-blue-600" />
                   Equipamento / Veículo <span className="text-red-500">*</span>
                 </Label>
-                <Select value={equipamentoId} onValueChange={setEquipamentoId}>
-                  <SelectTrigger id="equipamento" className="bg-white">
-                    <SelectValue placeholder="Selecione o equipamento utilizado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {equipamentos.map((eq) => (
-                      <SelectItem key={eq.id} value={eq.id}>
-                        {eq.identificacao}
-                        {eq.descricao ? (
-                          <span className="text-slate-500 text-xs"> — {eq.descricao}</span>
-                        ) : null}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectNativo
+                  id="equipamento"
+                  value={equipamentoId}
+                  onChange={setEquipamentoId}
+                  placeholder="Selecione o equipamento utilizado"
+                  options={equipamentos.map((eq) => ({
+                    value: eq.id,
+                    label: eq.descricao
+                      ? `${eq.identificacao} — ${eq.descricao}`
+                      : eq.identificacao,
+                  }))}
+                />
                 {equipamentos.length === 0 ? (
                   <p className="text-[11px] text-amber-600 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3 shrink-0" />
