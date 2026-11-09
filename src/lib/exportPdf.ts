@@ -18,11 +18,14 @@ export interface PdfRelatorioInfo {
   filtroDescricao: string
   empresa?: string | null
   resumo: RelatorioResumo
+  /** Nome do colaborador do relatório individual (para o campo de assinatura). */
+  nomeColaborador?: string | null
 }
 
 /**
  * Gera o PDF do relatório de horas extras (individual ou consolidado por filtros),
- * com a logo Silveira, identificação da empresa/período e resumo dos resultados.
+ * com a logo Silveira, identificação da empresa/período, resumo dos resultados e
+ * os dois campos de assinatura (colaborador + RH Silveira Transportes) no rodapé.
  */
 export function exportRegistrosToPdf(registros: RegistroHoraExtra[], info: PdfRelatorioInfo): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
@@ -131,6 +134,51 @@ export function exportRegistrosToPdf(registros: RegistroHoraExtra[], info: PdfRe
     margin: { left: 14, right: 14 },
   })
 
+  // Assinaturas (aprovação pelas duas partes): sempre em bloco próprio,
+  // em nova página se o rodapé não couber inteiro na atual (evita cortar
+  // ao imprimir / salvar PDF pelo Edge ou Chrome no Windows).
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const assinaturasHeight = 34
+  let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
+  if (finalY + assinaturasHeight > pageHeight - 12) {
+    doc.addPage()
+    finalY = 16
+  }
+
+  const y = finalY + 12
+  const colEsquerda = 30
+  const colDireita = pageWidth / 2 + 30
+  const lineWidth = pageWidth / 2 - 60
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(15, 23, 42)
+  doc.text('APROVAÇÃO DO RELATÓRIO', 14, y - 6)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(71, 85, 105)
+
+  // Assinatura do colaborador (nome impresso acima da linha)
+  const nomeColab = info.nomeColaborador?.trim()
+  if (nomeColab) {
+    doc.text(`Colaborador: ${nomeColab}`, colEsquerda + lineWidth / 2, y - 6, { align: 'center' })
+  }
+  doc.setDrawColor(30, 41, 59)
+  doc.setLineWidth(0.3)
+  doc.line(colEsquerda, y, colEsquerda + lineWidth, y)
+  doc.text('Assinatura do colaborador', colEsquerda + lineWidth / 2, y + 4, { align: 'center' })
+
+  // Assinatura do RH Silveira Transportes
+  doc.text('RH Silveira Transportes', colDireita + lineWidth / 2, y - 6, { align: 'center' })
+  doc.line(colDireita, y, colDireita + lineWidth, y)
+  doc.text(
+    'Assinatura do responsável do RH — Data: ____/____/____',
+    colDireita + lineWidth / 2,
+    y + 4,
+    { align: 'center' },
+  )
+
   const todayStr = new Date().toISOString().split('T')[0]
-  doc.save(`relatorio_horas_extras_${sanitizeFilename(info.empresa || 'geral')}_${todayStr}.pdf`)
+  const nomeBase = sanitizeFilename(info.nomeColaborador || 'geral')
+  doc.save(`relatorio_horas_extras_${nomeBase}_${todayStr}.pdf`)
 }

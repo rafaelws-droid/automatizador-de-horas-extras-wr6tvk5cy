@@ -10,10 +10,13 @@ import {
   formatDateBR,
   exportRegistrosToCsv,
   buildRelatorioResumo,
+  sanitizeFilename,
   type RelatorioResumo,
+  type AssinaturasRelatorioInfo,
 } from '@/lib/exportUtils'
 import { exportRegistrosToXlsx } from '@/lib/exportXlsx'
 import { exportRegistrosToPdf } from '@/lib/exportPdf'
+import { AssinaturasRelatorio } from '@/components/AssinaturasRelatorio'
 import {
   FileBarChart,
   FileSpreadsheet,
@@ -153,14 +156,21 @@ export default function Relatorio() {
     return partes.length > 0 ? partes.join(' | ') : 'Todos os lançamentos'
   }
 
+  const getNomeColaboradorFiltro = () =>
+    filterColaborador !== 'todos'
+      ? colaboradores.find((c) => c.id === filterColaborador)?.nome || null
+      : null
+
+  // Nome de arquivo seguro para Windows (sem espaços, acentos ou caracteres inválidos)
   const getNomeArquivo = () => {
-    const colab =
-      filterColaborador !== 'todos'
-        ? colaboradores.find((c) => c.id === filterColaborador)?.nome || 'colaborador'
-        : null
-    const base = colab ? `relatorio_${colab.replace(/\s+/g, '_').toLowerCase()}` : 'relatorio_geral'
+    const colab = getNomeColaboradorFiltro()
+    const base = colab ? `relatorio_${sanitizeFilename(colab)}` : 'relatorio_geral'
     return `${base}_${dataInicio || 'inicio'}_${dataFim || dataHoje}`
   }
+
+  const getAssinaturas = (): AssinaturasRelatorioInfo => ({
+    nomeColaborador: getNomeColaboradorFiltro(),
+  })
 
   const dataHoje = new Date().toISOString().split('T')[0]
 
@@ -178,7 +188,7 @@ export default function Relatorio() {
 
   const handleExportCsv = () => {
     if (!validarExportacao()) return
-    exportRegistrosToCsv(filteredRegistros, getNomeArquivo())
+    exportRegistrosToCsv(filteredRegistros, getNomeArquivo(), getAssinaturas())
     toast({
       title: 'CSV exportado com sucesso!',
       description: `${filteredRegistros.length} lançamentos exportados.`,
@@ -187,7 +197,7 @@ export default function Relatorio() {
 
   const handleExportXlsx = () => {
     if (!validarExportacao()) return
-    exportRegistrosToXlsx(filteredRegistros, getNomeArquivo())
+    exportRegistrosToXlsx(filteredRegistros, getNomeArquivo(), getAssinaturas())
     toast({
       title: 'Excel exportado com sucesso!',
       description: `${filteredRegistros.length} lançamentos exportados para XLSX.`,
@@ -206,6 +216,7 @@ export default function Relatorio() {
       filtroDescricao: getTituloFiltros(),
       empresa: empresaFiltro,
       resumo,
+      nomeColaborador: colab?.nome ?? null,
     })
     toast({
       title: 'PDF gerado com sucesso!',
@@ -541,6 +552,11 @@ export default function Relatorio() {
             {getTituloFiltros()}
           </div>
         </div>
+      )}
+
+      {/* Assinaturas: colaborador + RH Silveira Transportes */}
+      {!isLoading && filteredRegistros.length > 0 && (
+        <AssinaturasRelatorio nomeColaborador={getNomeColaboradorFiltro()} />
       )}
 
       <p className="text-xs text-slate-400 text-center">

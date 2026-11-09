@@ -46,6 +46,12 @@ export interface RelatorioIndividualInfo {
   periodo: string
 }
 
+/** Assinaturas para aprovação do relatório pelas duas partes (colaborador + RH). */
+export interface AssinaturasRelatorioInfo {
+  /** Nome do colaborador do relatório (impresso acima da linha). */
+  nomeColaborador?: string | null
+}
+
 export interface RelatorioResumo {
   quantidade: number
   horasBrutas: number
@@ -95,6 +101,28 @@ export function buildRegistrosExportRows(registros: RegistroHoraExtra[]): string
   ])
 }
 
+/**
+ * Monta as linhas finais de assinatura (colaborador + RH Silveira Transportes)
+ * usadas nas exportações CSV/XLSX — texto simples + linha em branco para assinar.
+ */
+export function blocosAssinaturaCsv(assinaturas: AssinaturasRelatorioInfo): string[][] {
+  const nomeColab = assinaturas.nomeColaborador?.trim() || '____________________'
+  return [
+    [],
+    ['APROVAÇÃO DO RELATÓRIO'],
+    ['Colaborador', nomeColab, '', 'RH Silveira Transportes', ''],
+    [
+      'Assinatura do colaborador',
+      '',
+      '',
+      'Assinatura do responsável do RH',
+      'Data: ____/____/____',
+    ],
+    [],
+    [],
+  ]
+}
+
 export function sanitizeFilename(value: string): string {
   return value
     .normalize('NFD')
@@ -110,14 +138,20 @@ const num = (n: number) => (n || 0).toFixed(2).replace('.', ',')
 function downloadCsv(csvContent: string, filename: string): void {
   // BOM para garantir que Excel e Google Sheets abram corretamente com acentos UTF-8
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  // Download manual via âncora — compatível com Edge/Chrome no Windows.
+  // A URL só é revogada depois de um atraso: revogar imediatamente após o
+  // click() pode cancelar o download nesses navegadores.
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
+  link.style.display = 'none'
   link.setAttribute('href', url)
   link.setAttribute('download', filename)
   document.body.appendChild(link)
   link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => {
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, 1000)
 }
 
 /**
@@ -127,6 +161,7 @@ function downloadCsv(csvContent: string, filename: string): void {
 export function exportRelatorioIndividualToCsv(
   registros: RegistroHoraExtra[],
   info: RelatorioIndividualInfo,
+  assinaturas?: AssinaturasRelatorioInfo,
 ): void {
   const totalHoras = registros.reduce((acc, r) => acc + (r.quantidade_horas || 0), 0)
   const totalValor = registros.reduce((acc, r) => acc + (r.valor_total || 0), 0)
@@ -177,6 +212,7 @@ export function exportRelatorioIndividualToCsv(
     headers.map(escapeCsv).join(';'),
     ...rows.map((linha) => linha.join(';')),
     totais.join(';'),
+    ...(assinaturas ? blocosAssinaturaCsv(assinaturas) : []),
   ]
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -192,6 +228,7 @@ export function exportRelatorioIndividualToCsv(
 export function exportRegistrosToCsv(
   registros: RegistroHoraExtra[],
   filenamePrefix = 'horas_extras',
+  assinaturas?: AssinaturasRelatorioInfo,
 ): void {
   const headers = [
     'ID Registro',
@@ -238,7 +275,11 @@ export function exportRegistrosToCsv(
     ].join(';')
   })
 
-  const csvContent = [headers.map((h) => `"${h}"`).join(';'), ...rows].join('\r\n')
+  const csvContent = [
+    headers.map((h) => `"${h}"`).join(';'),
+    ...rows,
+    ...(assinaturas ? blocosAssinaturaCsv(assinaturas).map((l) => l.map(escapeCsv).join(';')) : []),
+  ].join('\r\n')
   const todayStr = new Date().toISOString().split('T')[0]
   downloadCsv(csvContent, `${filenamePrefix}_${todayStr}.csv`)
 }
