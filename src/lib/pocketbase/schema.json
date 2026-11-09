@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-09T18:43:51.647Z",
+  "generatedAt": "2026-11-09T19:03:46.805Z",
   "collections": [
     {
       "name": "users",
@@ -29,14 +29,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
@@ -72,14 +77,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "valor_hora",
@@ -92,10 +102,16 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["RAFAEL", "RUANN", "OLIMAR"]
+          "selectValues": [
+            "RAFAEL",
+            "RUANN",
+            "OLIMAR"
+          ]
         }
       ],
-      "indexes": ["CREATE INDEX idx_colaboradores_nome ON colaboradores (nome)"]
+      "indexes": [
+        "CREATE INDEX idx_colaboradores_nome ON colaboradores (nome)"
+      ]
     },
     {
       "name": "registros_horas",
@@ -144,7 +160,10 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["50%", "100%"]
+          "selectValues": [
+            "50%",
+            "100%"
+          ]
         },
         {
           "name": "valor_total",
@@ -163,14 +182,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "hora_fim",
@@ -225,14 +249,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
